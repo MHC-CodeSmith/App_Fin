@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mi Financiera</title>
+<meta name="theme-color" content="#2f7d5b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Financiera">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+:root{
+  --bg:#f3f6f4; --card:#ffffff; --ink:#1d2a24; --muted:#66756d; --line:#dfe7e2;
+  --brand:#2f7d5b; --brand-ink:#ffffff; --brand-soft:#e3f1ea;
+  --red:#c2412d; --red-soft:#fbe9e5; --amber:#a86a00; --amber-soft:#fdf2dc;
+  --blue:#2b62a8; --blue-soft:#e6eef9; --shadow:0 1px 2px rgba(0,0,0,.05),0 2px 8px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121815; --card:#1b2420; --ink:#e4ece7; --muted:#93a39a; --line:#2c3833;
+    --brand:#5cb88f; --brand-ink:#0d1a14; --brand-soft:#1f3a2e;
+    --red:#ef7a66; --red-soft:#3a201b; --amber:#e6b450; --amber-soft:#382c14;
+    --blue:#7fa9e3; --blue-soft:#1c2a3d; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121815; --card:#1b2420; --ink:#e4ece7; --muted:#93a39a; --line:#2c3833;
+  --brand:#5cb88f; --brand-ink:#0d1a14; --brand-soft:#1f3a2e;
+  --red:#ef7a66; --red-soft:#3a201b; --amber:#e6b450; --amber-soft:#382c14;
+  --blue:#7fa9e3; --blue-soft:#1c2a3d; --shadow:none;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.top{max-width:1100px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.top h1{font-size:18px;margin:0;font-weight:700;letter-spacing:-.01em}
+.top h1 span{color:var(--brand)}
+nav{display:flex;gap:4px;flex-wrap:wrap;margin-left:auto}
+nav button{border:0;background:transparent;color:var(--muted);padding:8px 12px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer}
+nav button.on{background:var(--brand-soft);color:var(--brand)}
+main{max-width:1100px;margin:0 auto;padding:16px}
+h2{font-size:16px;margin:24px 0 10px}
+h2 small{color:var(--muted);font-weight:500}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:var(--shadow)}
+.kpi .l{color:var(--muted);font-size:13px}
+.kpi .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi .s{color:var(--muted);font-size:12px}
+.kpi.red .v{color:var(--red)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.list .row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
+.list .row:first-child{border-top:0}
+.who{flex:1 1 200px;min-width:0}
+.who b{font-size:15px}
+.who .meta{color:var(--muted);font-size:13px}
+.amt{font-variant-numeric:tabular-nums;text-align:right;min-width:150px}
+.amt b{font-size:17px}
+.amt .meta{color:var(--muted);font-size:12px}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 11px;border-radius:8px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--brand)}
+.btn.pri{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.btn.warn{color:var(--amber)}
+.btn.dan{color:var(--red)}
+.btn.wa{color:#1f9d55}
+.btn.sm{padding:4px 8px;font-size:12px}
+.chip{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;vertical-align:1px}
+.chip.red{background:var(--red-soft);color:var(--red)}
+.chip.amber{background:var(--amber-soft);color:var(--amber)}
+.chip.green{background:var(--brand-soft);color:var(--brand)}
+.chip.blue{background:var(--blue-soft);color:var(--blue)}
+.chip.gray{background:var(--line);color:var(--muted)}
+.empty{padding:18px;color:var(--muted);text-align:center}
+.grp{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:18px 0 6px}
+.grp.red{color:var(--red)}
+.loans{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+.loan{padding:14px}
+.loan .hd{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.loan .hd b{font-size:16px}
+.formula{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:var(--bg);border-radius:8px;padding:8px 10px;margin:10px 0;line-height:1.6}
+.bar{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin:8px 0 4px}
+.bar i{display:block;height:100%;background:var(--brand)}
+.loan .nums{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.loan .nums b{color:var(--ink);font-variant-numeric:tabular-nums}
+.loan .acts{margin-top:12px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--muted);font-weight:600;font-size:12px}
+td.n,th.n{text-align:right}
+tr.paid td{color:var(--muted)}
+tr.late td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.tblwrap{overflow-x:auto}
+.form{padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:600}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--brand);outline-offset:-1px}
+.full{grid-column:1/-1}
+.preview{padding:0 16px 16px}
+.hint{color:var(--muted);font-size:13px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:16px 0 10px}
+.toolbar input{max-width:260px}
+.banner{background:var(--amber-soft);color:var(--amber);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+dialog{border:0;border-radius:14px;padding:0;background:var(--card);color:var(--ink);width:min(560px,calc(100vw - 32px));box-shadow:0 10px 40px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog .dh{padding:16px 16px 0;font-weight:700;font-size:16px}
+dialog .df{display:flex;justify-content:flex-end;gap:8px;padding:0 16px 16px}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:14px;display:none;gap:12px;align-items:center;z-index:50}
+#toast button{background:none;border:0;color:var(--brand-soft);font:inherit;font-weight:700;cursor:pointer;text-decoration:underline}
+.sumrow{display:flex;gap:16px;flex-wrap:wrap;padding:12px 14px;border-top:1px solid var(--line);font-size:14px}
+.sumrow b{font-variant-numeric:tabular-nums}
+@media (max-width:600px){
+  nav{margin-left:0;width:100%}
+  nav button{flex:1;padding:8px 4px;font-size:13px}
+  .amt{text-align:left;min-width:0}
+  .loans{grid-template-columns:1fr}
+  .kpis{grid-template-columns:1fr 1fr;gap:8px}
+  .kpi{padding:10px 12px}
+  .kpi .v{font-size:19px}
+  main{padding:12px}
+}
+</style>
+</head>
+<body>
+<header><div class="top">
+  <h1>Mi <span>Financiera</span></h1>
+  <nav id="nav">
+    <button data-v="inicio" class="on">Cobros</button>
+    <button data-v="prestamos">Préstamos</button>
+    <button data-v="nuevo">+ Nuevo</button>
+    <button data-v="historial">Historial</button>
+    <button data-v="respaldo">Respaldo</button>
+  </nav>
+</div></header>
+<main id="app"></main>
+<dialog id="dlg"><form method="dialog" id="dlgForm"><div class="dh" id="dlgTitle"></div><div id="dlgBody"></div><div class="df"><button class="btn" value="cancel" formnovalidate>Cancelar</button><button class="btn pri" value="ok" id="dlgOk">Guardar</button></div></form></dialog>
+<div id="toast"><span id="toastMsg"></span><button id="toastUndo">Deshacer</button></div>
+<input type="file" id="fileIn" accept=".json,application/json" hidden>
+
+<script>
+/* ================= Datos ================= */
+const KEY = 'financiera.v1';
+const pad = n => String(n).padStart(2,'0');
+const iso = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const hoy = () => iso(new Date());
+const P = s => { const [y,m,d] = s.split('-').map(Number); return {y,m,d}; };
+const uid = () => Math.random().toString(36).slice(2,10);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r2 = x => Math.round(x*100)/100;
+
+function addMonths(s, k, dia){
+  const p = P(s); let m = p.m - 1 + k; const y = p.y + Math.floor(m/12); m = ((m%12)+12)%12;
+  const last = new Date(y, m+1, 0).getDate();
+  return y+'-'+pad(m+1)+'-'+pad(Math.min(dia || p.d, last));
+}
+const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function fD(s){ if(!s) return '—'; const p = P(s); return pad(p.d)+'/'+pad(p.m)+(p.y !== new Date().getFullYear() ? '/'+p.y : ''); }
+function money(x){ x = r2(x||0); return 'S/ ' + x.toLocaleString('es-PE', {minimumFractionDigits: Number.isInteger(x)?0:2, maximumFractionDigits:2}); }
+const num = x => { x = r2(x||0); return Number.isInteger(x) ? String(x) : x.toFixed(2); };
+const daysBetween = (a,b) => Math.round((new Date(b+'T00:00') - new Date(a+'T00:00'))/864e5);
+
+/* Reparte capital e interés en n cuotas: capital redondeado hacia arriba, interés hacia abajo,
+   la última cuota ajusta la diferencia (así 2000*20%/3 = 667+133 = 800 cada mes). */
+function split(cap, int, n){
+  let c = Math.ceil(cap/n); if (c*(n-1) > cap) c = Math.floor(cap/n);
+  let i = Math.floor(int/n); if (i*(n-1) > int) i = 0;
+  return Array.from({length:n}, (_,k) => k < n-1 ? {capital:c, interes:i} : {capital:r2(cap-c*(n-1)), interes:r2(int-i*(n-1))});
+}
+function interesDe(modo, base, valor, meses){
+  if (modo === 'pct') return r2(base*valor/100);
+  if (modo === 'mes') return r2(valor*meses);
+  return r2(valor);
+}
+function formulaDe(modo, base, valor, meses, intTotal, extra){
+  const parts = split(base, intTotal, meses)[0];
+  let f = modo === 'pct' ? `${num(base)}*${num(valor)}%` : modo === 'mes' ? `${num(base)}cap + ${num(valor)}int/mes` : `${num(base)}cap + ${num(intTotal)}int`;
+  if (extra) f = extra + ' → ' + f;
+  if (meses > 1) f += (modo === 'mes' ? ` x ${meses}mes` : `/${meses}mes`);
+  return f + `\n${num(parts.capital)}cap+${num(parts.interes)}int=${num(parts.capital+parts.interes)}`;
+}
+
+function crearPrestamo(o){
+  const intTotal = interesDe(o.modo, o.capital, o.valor, o.meses);
+  const dia = P(o.primera).d;
+  const cuotas = split(o.capital, intTotal, o.meses).map((p,k) => {
+    const fecha = addMonths(o.primera, k, dia), pag = k < (o.pagadas||0);
+    return {id:uid(), fecha, capital:p.capital, interes:p.interes, tipo:'normal', pagado:pag, fechaPago: pag ? fecha : null};
+  });
+  return {id:uid(), cliente:o.cliente.trim(), tel:(o.tel||'').trim(), nota:(o.nota||'').trim(),
+    capital:o.capital, modo:o.modo, valor:o.valor, meses:o.meses, interesTotal:intTotal, dia,
+    formula: formulaDe(o.modo, o.capital, o.valor, o.meses, intTotal, o.extra), creado:hoy(), cuotas,
+    eventos:[{f:hoy(), t:'Préstamo registrado'}]};
+}
+
+/* Paga solo el interés de la cuota c: queda registrado ese pago y toda la deuda pendiente se corre un mes. */
+function aplicarSoloInteres(L, c, monto, fechaPago){
+  const idx = L.cuotas.indexOf(c);
+  L.cuotas.forEach((q,j) => { if (j >= idx && !q.pagado) q.fecha = addMonths(q.fecha, 1, L.dia); });
+  L.cuotas.splice(idx, 0, {id:uid(), fecha:addMonths(c.fecha,-1,L.dia), capital:0, interes:monto, tipo:'interes', pagado:true, fechaPago});
+  L.eventos.push({f:hoy(), t:`Pagó solo interés (${money(monto)}). La deuda se corrió un mes.`});
+}
+function deshacerSoloInteres(L, q){
+  const idx = L.cuotas.indexOf(q);
+  L.cuotas.splice(idx,1);
+  L.cuotas.forEach((x,j) => { if (j >= idx && !x.pagado) x.fecha = addMonths(x.fecha, -1, L.dia); });
+  L.eventos.push({f:hoy(), t:'Se anuló un pago de solo interés'});
+}
+
+function seed(){
+  // Datos ficticios, con fechas relativas a hoy, solo para mostrar cómo funciona la app.
+  const t = hoy();
+  const a = crearPrestamo({cliente:'María (ejemplo)', capital:1000, modo:'pct', valor:16, meses:2, primera:addMonths(t,0,P(t).d < 25 ? P(t).d+3 : 28), pagadas:0});
+  const b = crearPrestamo({cliente:'Juan (ejemplo)', capital:2000, modo:'pct', valor:20, meses:3, primera:addMonths(t,-2,30), pagadas:1});
+  aplicarSoloInteres(b, b.cuotas[1], 133, b.cuotas[1].fecha);
+  const c = crearPrestamo({cliente:'Pedro y Rosa (ejemplo)', capital:1700, modo:'mes', valor:25, meses:4, primera:addMonths(t,-1,30), pagadas:1,
+    extra:'1400cap+500int-200=1700', nota:'Refinanciamiento: el interés no pagado (500) se sumó al capital (1400), menos un abono de 200. Interés simbólico de 25/mes.'});
+  return {prestamos:[a,b,c], ultimoRespaldo:null, ejemplo:true};
+}
+
+let S, persist = true;
+try { const raw = localStorage.getItem(KEY); S = raw ? JSON.parse(raw) : seed(); } catch(e){ S = seed(); persist = false; }
+function save(){
+  if (persist) try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ persist = false; }
+  render();
+}
+
+/* ================= Cálculos ================= */
+const pendientes = L => L.cuotas.filter(c => !c.pagado);
+const normales = L => L.cuotas.filter(c => c.tipo === 'normal');
+function posicion(L, c){ return (L.cuotas.indexOf(c)+1) + '/' + L.cuotas.length; }
+function extrasInteres(L){ return L.cuotas.filter(c => c.tipo === 'interes').length; }
+function estadoPrestamo(L){
+  const p = pendientes(L);
+  if (!p.length) return {t:'Pagado', cls:'green'};
+  if (p[0].fecha < hoy()) return {t:'Atrasado', cls:'red'};
+  return {t:'Al día', cls:'blue'};
+}
+function mesKey(s){ return s.slice(0,7); }
+
+/* ================= UI ================= */
+let vista = 'inicio', filtro = '', mesHist = hoy().slice(0,7), abiertos = new Set();
+const app = document.getElementById('app');
+document.getElementById('nav').onclick = e => { const b = e.target.closest('button'); if (!b) return; ir(b.dataset.v); };
+function ir(v){ vista = v; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); render(); window.scrollTo(0,0); }
+
+function render(){
+  ({inicio:vInicio, prestamos:vPrestamos, nuevo:vNuevo, historial:vHistorial, respaldo:vRespaldo})[vista]();
+}
+
+function bannerRespaldo(){
+  let h = '';
+  if (!persist) h += `<div class="banner">⚠️ Este navegador no permite guardar datos aquí. Usa “Respaldo → Exportar” antes de cerrar.</div>`;
+  const u = S.ultimoRespaldo;
+  if (persist && (!u || daysBetween(u, hoy()) > 7)) h += `<div class="banner">💾 ${u ? 'Tu último respaldo fue hace '+daysBetween(u,hoy())+' días.' : 'Aún no tienes un respaldo.'} Los datos viven solo en este navegador. <button class="btn sm" onclick="exportarJSON()">Descargar respaldo</button></div>`;
+  if (S.ejemplo) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">Estos préstamos son de ejemplo, para que veas cómo funciona. Cuando quieras, empieza vacío o restaura tu respaldo. <button class="btn sm" onclick="S={prestamos:[],ultimoRespaldo:S.ultimoRespaldo,ejemplo:false};save()">Empezar vacío</button> <button class="btn sm" onclick="document.getElementById('fileIn').click()">Restaurar respaldo</button></div>`;
+  return h;
+}
+
+function filaCobro(L, c){
+  const t = hoy(), atras = c.fecha < t ? daysBetween(c.fecha, t) : 0;
+  const ext = extrasInteres(L);
+  return `<div class="row">
+    <div class="who"><b>${esc(L.cliente)}</b> <span class="chip gray">${posicion(L,c)}${ext?` · +${ext} solo int.`:''}</span>
+      <div class="meta">Vence ${fD(c.fecha)} ${atras ? `<span class="chip red">${atras} día${atras>1?'s':''} de atraso</span>` : c.fecha===t ? '<span class="chip amber">hoy</span>' : `· faltan ${daysBetween(t,c.fecha)} días`}</div></div>
+    <div class="amt"><b>${money(c.capital+c.interes)}</b><div class="meta">${num(c.capital)} cap + ${num(c.interes)} int</div></div>
+    <div class="acts">
+      <button class="btn pri" onclick="pagar('${L.id}','${c.id}')">✓ Pagó</button>
+      <button class="btn warn" onclick="dlgSoloInteres('${L.id}','${c.id}')">Solo interés</button>
+      <button class="btn wa" onclick="whatsapp('${L.id}','${c.id}')">WhatsApp</button>
+    </div></div>`;
+}
+
+function vInicio(){
+  const t = hoy(), mes = t.slice(0,7), prox = addMonths(t,1).slice(0,7);
+  const items = [];
+  S.prestamos.forEach(L => pendientes(L).forEach(c => items.push({L,c})));
+  items.sort((a,b) => a.c.fecha.localeCompare(b.c.fecha));
+  const atras = items.filter(x => x.c.fecha < t);
+  const esteMes = items.filter(x => x.c.fecha >= t && mesKey(x.c.fecha) === mes);
+  const proxMes = items.filter(x => mesKey(x.c.fecha) === prox);
+  const calle = items.reduce((s,x) => s + x.c.capital, 0);
+  const porInt = items.reduce((s,x) => s + x.c.interes, 0);
+  const porCobrarMes = [...atras, ...esteMes].reduce((s,x) => s + x.c.capital + x.c.interes, 0);
+  let cobradoMes = 0, intMes = 0;
+  S.prestamos.forEach(L => L.cuotas.forEach(c => { if (c.pagado && c.fechaPago && mesKey(c.fechaPago) === mes){ cobradoMes += c.capital+c.interes; intMes += c.interes; }}));
+  const activos = S.prestamos.filter(L => pendientes(L).length).length;
+  const nombreMes = m => { const p = P(m+'-01'); return MESES[p.m-1]; };
+
+  const grupo = (titulo, arr, cls) => arr.length ? `<div class="grp ${cls||''}">${titulo} · ${money(arr.reduce((s,x)=>s+x.c.capital+x.c.interes,0))}</div><div class="card list">${arr.map(x=>filaCobro(x.L,x.c)).join('')}</div>` : '';
+  app.innerHTML = bannerRespaldo() + `
+  <div class="kpis">
+    <div class="kpi"><div class="l">Capital en la calle</div><div class="v">${money(calle)}</div><div class="s">${activos} préstamo${activos!==1?'s':''} activo${activos!==1?'s':''} · +${money(porInt)} de interés por cobrar</div></div>
+    <div class="kpi"><div class="l">Por cobrar en ${nombreMes(mes)}</div><div class="v">${money(porCobrarMes)}</div><div class="s">incluye atrasados</div></div>
+    <div class="kpi"><div class="l">Cobrado en ${nombreMes(mes)}</div><div class="v">${money(cobradoMes)}</div><div class="s">ganancia (interés): ${money(intMes)}</div></div>
+    <div class="kpi ${atras.length?'red':''}"><div class="l">Cuotas atrasadas</div><div class="v">${atras.length}</div><div class="s">${atras.length ? money(atras.reduce((s,x)=>s+x.c.capital+x.c.interes,0))+' vencido' : 'todo en orden'}</div></div>
+  </div>
+  ${grupo('Atrasados', atras, 'red')}
+  ${grupo('Este mes ('+nombreMes(mes)+')', esteMes)}
+  ${grupo('Próximo mes ('+nombreMes(prox)+')', proxMes)}
+  ${!atras.length && !esteMes.length && !proxMes.length ? '<div class="card empty" style="margin-top:16px">No hay cobros pendientes para este mes ni el próximo. 🎉</div>' : ''}`;
+}
+
+function vPrestamos(){
+  const q = filtro.toLowerCase();
+  const lista = S.prestamos.filter(L => !q || L.cliente.toLowerCase().includes(q))
+    .sort((a,b) => { const pa = pendientes(a)[0], pb = pendientes(b)[0]; if (!pa) return 1; if (!pb) return -1; return pa.fecha.localeCompare(pb.fecha); });
+  app.innerHTML = bannerRespaldo() + `<div class="toolbar"><input id="buscar" placeholder="Buscar cliente…" value="${esc(filtro)}"><span class="hint">${S.prestamos.length} préstamos en total</span><span style="flex:1"></span><button class="btn pri" onclick="ir('nuevo')">+ Nuevo préstamo</button></div>
+  <div class="loans">${lista.map(tarjeta).join('') || '<div class="card empty">Sin préstamos.</div>'}</div>`;
+  const b = document.getElementById('buscar');
+  b.oninput = () => { filtro = b.value; const pos = b.selectionStart; vPrestamos(); const nb = document.getElementById('buscar'); nb.focus(); nb.setSelectionRange(pos,pos); };
+}
+
+function tarjeta(L){
+  const e = estadoPrestamo(L), pend = pendientes(L), sig = pend[0];
+  const totCap = L.cuotas.reduce((s,c)=>s+c.capital,0), pagCap = L.cuotas.filter(c=>c.pagado).reduce((s,c)=>s+c.capital,0);
+  const intCobrado = L.cuotas.filter(c=>c.pagado).reduce((s,c)=>s+c.interes,0);
+  const ext = extrasInteres(L), nNorm = normales(L).length;
+  const abierto = abiertos.has(L.id);
+  return `<div class="card loan">
+    <div class="hd"><div><b>${esc(L.cliente)}</b> ${L.modo==='pct' ? `<span class="hint">(${num(L.valor)}%)</span>` : ''}
+      <div class="hint">${sig ? `Cuota ${posicion(L,sig)} · vence ${fD(sig.fecha)}` : 'Préstamo terminado'} · total ${L.cuotas.length}/${L.cuotas.length}${ext ? ` (${nNorm} + ${ext} solo interés)` : ''}</div></div>
+      <span class="chip ${e.cls}">${e.t}</span></div>
+    <div class="formula">${esc(L.formula).replace(/\n/g,'<br>')}${sig ? ` (${fD(sig.fecha)})` : ''}</div>
+    <div class="bar"><i style="width:${totCap ? Math.round(pagCap/totCap*100) : 100}%"></i></div>
+    <div class="nums"><span>Capital devuelto <b>${money(pagCap)}</b> de ${money(totCap)}</span><span>Interés cobrado <b>${money(intCobrado)}</b></span></div>
+    ${L.tel ? `<div class="hint" style="margin-top:6px">📞 ${esc(L.tel)}</div>` : ''}
+    ${L.nota ? `<div class="hint" style="margin-top:6px">📝 ${esc(L.nota)}</div>` : ''}
+    <div class="acts">
+      <button class="btn" onclick="toggle('${L.id}')">${abierto ? 'Ocultar cuotas' : 'Ver cuotas'}</button>
+      <button class="btn" onclick="dlgEditar('${L.id}')">Editar</button>
+      ${pend.length ? `<button class="btn warn" onclick="dlgRefinanciar('${L.id}')">Refinanciar</button>` : ''}
+      <button class="btn dan" onclick="eliminar('${L.id}')">Eliminar</button>
+    </div>
+    ${abierto ? tablaCuotas(L) : ''}
+  </div>`;
+}
+function toggle(id){ abiertos.has(id) ? abiertos.delete(id) : abiertos.add(id); render(); }
+
+function tablaCuotas(L){
+  const t = hoy();
+  return `<div class="tblwrap" style="margin-top:12px"><table><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Cap.</th><th class="n">Int.</th><th class="n">Total</th><th>Estado</th><th></th></tr></thead><tbody>
+  ${L.cuotas.map((c,i) => {
+    const late = !c.pagado && c.fecha < t;
+    const est = c.pagado ? `<span class="chip green">Pagado ${fD(c.fechaPago)}</span>` : late ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>';
+    const acc = c.tipo === 'interes'
+      ? `<button class="btn sm" onclick="anularInteres('${L.id}','${c.id}')">Anular</button>`
+      : c.pagado ? `<button class="btn sm" onclick="despagar('${L.id}','${c.id}')">Deshacer</button>`
+      : `<button class="btn sm pri" onclick="pagar('${L.id}','${c.id}')">Pagó</button> <button class="btn sm" onclick="dlgCuota('${L.id}','${c.id}')">✎</button>`;
+    return `<tr class="${c.pagado?'paid':''} ${late?'late':''}"><td>${i+1}${c.tipo==='interes'?' <span class="chip amber">solo int.</span>':''}</td><td>${fD(c.fecha)}</td><td class="n">${num(c.capital)}</td><td class="n">${num(c.interes)}</td><td class="n"><b>${num(c.capital+c.interes)}</b></td><td>${est}</td><td style="white-space:nowrap">${acc}</td></tr>`;
+  }).join('')}</tbody></table></div>
+  ${L.eventos?.length ? `<details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Historial del préstamo (${L.eventos.length})</summary><ul class="hint">${L.eventos.map(e=>`<li>${fD(e.f)} — ${esc(e.t)}</li>`).join('')}</ul></details>` : ''}`;
+}
+
+/* ---------- Nuevo préstamo ---------- */
+let borrador = {cliente:'', tel:'', capital:1000, modo:'pct', valor:16, meses:2, primera:addMonths(hoy(),1), pagadas:0, nota:''};
+function vNuevo(){
+  const b = borrador;
+  app.innerHTML = `<h2>Nuevo préstamo <small>· también sirve como calculadora</small></h2>
+  <div class="card"><div class="form" id="fNuevo">
+    <label>Cliente<input name="cliente" value="${esc(b.cliente)}" placeholder="Nombre" required></label>
+    <label>Teléfono (WhatsApp)<input name="tel" value="${esc(b.tel)}" placeholder="9XX XXX XXX" inputmode="tel"></label>
+    <label>Capital prestado (S/)<input name="capital" type="number" min="1" step="any" value="${b.capital}"></label>
+    <label>Tipo de interés<select name="modo">
+      <option value="pct" ${b.modo==='pct'?'selected':''}>% sobre el capital (total)</option>
+      <option value="fijo" ${b.modo==='fijo'?'selected':''}>Monto fijo total (S/)</option>
+      <option value="mes" ${b.modo==='mes'?'selected':''}>Monto fijo por mes (S/)</option></select></label>
+    <label><span id="lblValor">${b.modo==='pct'?'Porcentaje (%)':'Monto de interés (S/)'}</span><input name="valor" type="number" min="0" step="any" value="${b.valor}"></label>
+    <label>Meses<input name="meses" type="number" min="1" step="1" value="${b.meses}"></label>
+    <label>Primera fecha límite<input name="primera" type="date" value="${b.primera}"></label>
+    <label>Cuotas ya pagadas<input name="pagadas" type="number" min="0" step="1" value="${b.pagadas}"><span class="hint" style="font-weight:400">Para registrar préstamos que ya venían de antes</span></label>
+    <label class="full">Nota<textarea name="nota" rows="2" placeholder="Opcional">${esc(b.nota)}</textarea></label>
+  </div><div class="preview" id="prev"></div>
+  <div class="df" style="padding:0 16px 16px;display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="borrador={cliente:'',tel:'',capital:1000,modo:'pct',valor:16,meses:2,primera:addMonths(hoy(),1),pagadas:0,nota:''};vNuevo()">Limpiar</button><button class="btn pri" onclick="guardarNuevo()">Guardar préstamo</button></div></div>`;
+  const f = document.getElementById('fNuevo');
+  f.oninput = () => { leerBorrador(); document.getElementById('lblValor').textContent = borrador.modo==='pct'?'Porcentaje (%)':borrador.modo==='mes'?'Interés por mes (S/)':'Interés total (S/)'; previa(); };
+  previa();
+}
+function leerBorrador(){
+  const f = document.getElementById('fNuevo'), v = n => f.querySelector(`[name=${n}]`).value;
+  borrador = {cliente:v('cliente'), tel:v('tel'), capital:+v('capital')||0, modo:v('modo'), valor:+v('valor')||0, meses:Math.max(1,parseInt(v('meses'))||1), primera:v('primera')||hoy(), pagadas:Math.max(0,parseInt(v('pagadas'))||0), nota:v('nota')};
+}
+function previa(){
+  const b = borrador, el = document.getElementById('prev');
+  if (!b.capital || !b.primera){ el.innerHTML = ''; return; }
+  const L = crearPrestamo({...b, cliente:b.cliente||'—'});
+  const tot = L.capital + L.interesTotal;
+  el.innerHTML = `<div class="formula" style="margin-top:0">${esc(L.formula).replace(/\n/g,'<br>')} (${fD(L.cuotas[0].fecha)})</div>
+   <div class="hint" style="margin-bottom:8px">Interés total <b>${money(L.interesTotal)}</b> · Te devuelven <b>${money(tot)}</b> en ${b.meses} cuota${b.meses>1?'s':''}</div>
+   <div class="tblwrap"><table><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th></tr></thead><tbody>
+   ${L.cuotas.map((c,i)=>`<tr class="${c.pagado?'paid':''}"><td>${i+1}/${b.meses}</td><td>${fD(c.fecha)}</td><td class="n">${num(c.capital)}</td><td class="n">${num(c.interes)}</td><td class="n"><b>${num(c.capital+c.interes)}</b>${c.pagado?' ✓':''}</td></tr>`).join('')}
+   </tbody></table></div>`;
+}
+function guardarNuevo(){
+  leerBorrador();
+  if (!borrador.cliente.trim()) { toast('Escribe el nombre del cliente'); return; }
+  if (!borrador.capital) { toast('Escribe el capital'); return; }
+  const L = crearPrestamo(borrador);
+  S.prestamos.push(L); abiertos.add(L.id);
+  borrador = {cliente:'', tel:'', capital:1000, modo:'pct', valor:16, meses:2, primera:addMonths(hoy(),1), pagadas:0, nota:''};
+  vista = 'prestamos'; ir('prestamos'); save(); toast('Préstamo guardado');
+}
+
+/* ---------- Historial ---------- */
+function vHistorial(){
+  const pagos = [];
+  S.prestamos.forEach(L => L.cuotas.forEach(c => { if (c.pagado && c.fechaPago) pagos.push({L,c}); }));
+  const meses = [...new Set(pagos.map(p => mesKey(p.c.fechaPago)))].sort().reverse();
+  if (mesHist !== 'todo' && !meses.includes(mesHist) && meses.length) { /* mantener selección aunque esté vacía */ }
+  const sel = pagos.filter(p => mesHist === 'todo' || mesKey(p.c.fechaPago) === mesHist).sort((a,b) => b.c.fechaPago.localeCompare(a.c.fechaPago));
+  const sCap = sel.reduce((s,p)=>s+p.c.capital,0), sInt = sel.reduce((s,p)=>s+p.c.interes,0);
+  const nombre = m => { const p = P(m+'-01'); return MESES[p.m-1]+' '+p.y; };
+  const resumen = meses.map(m => { const ps = pagos.filter(p=>mesKey(p.c.fechaPago)===m); return {m, cap:ps.reduce((s,p)=>s+p.c.capital,0), int:ps.reduce((s,p)=>s+p.c.interes,0)}; });
+  app.innerHTML = `<div class="toolbar"><select id="selMes" style="max-width:200px"><option value="todo">Todos los meses</option>${[...new Set([hoy().slice(0,7),...meses])].sort().reverse().map(m=>`<option value="${m}" ${m===mesHist?'selected':''}>${nombre(m)}</option>`).join('')}</select></div>
+  <div class="card"><div class="tblwrap"><table><thead><tr><th>Fecha de pago</th><th>Cliente</th><th>Cuota</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th></tr></thead><tbody>
+  ${sel.map(p=>`<tr><td>${fD(p.c.fechaPago)}</td><td>${esc(p.L.cliente)}</td><td>${posicion(p.L,p.c)}${p.c.tipo==='interes'?' <span class="chip amber">solo int.</span>':''}</td><td class="n">${num(p.c.capital)}</td><td class="n">${num(p.c.interes)}</td><td class="n"><b>${num(p.c.capital+p.c.interes)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Sin pagos en este periodo.</td></tr>'}
+  </tbody></table></div>
+  <div class="sumrow"><span>Capital recuperado <b>${money(sCap)}</b></span><span>Ganancia (interés) <b style="color:var(--brand)">${money(sInt)}</b></span><span>Total cobrado <b>${money(sCap+sInt)}</b></span></div></div>
+  ${resumen.length ? `<h2>Ganancia por mes</h2><div class="card"><div class="tblwrap"><table><thead><tr><th>Mes</th><th class="n">Capital recuperado</th><th class="n">Interés ganado</th><th class="n">Total cobrado</th></tr></thead><tbody>${resumen.map(r=>`<tr><td>${nombre(r.m)}</td><td class="n">${num(r.cap)}</td><td class="n"><b>${num(r.int)}</b></td><td class="n">${num(r.cap+r.int)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`;
+  document.getElementById('selMes').onchange = e => { mesHist = e.target.value; vHistorial(); };
+}
+
+/* ---------- Respaldo ---------- */
+function vRespaldo(){
+  app.innerHTML = `<h2>Respaldo de datos</h2>
+  <div class="card" style="padding:16px">
+    <p style="margin-top:0">Tus datos se guardan <b>solo en este navegador y esta computadora</b>; no se suben a internet. Si borras el historial del navegador o cambias de equipo, se pierden, así que <b>descarga un respaldo cada semana</b>.</p>
+    <p class="hint">Último respaldo: ${S.ultimoRespaldo ? fD(S.ultimoRespaldo) : 'nunca'}</p>
+    <div class="acts">
+      <button class="btn pri" onclick="exportarJSON()">⬇ Descargar respaldo (.json)</button>
+      <button class="btn" onclick="document.getElementById('fileIn').click()">⬆ Restaurar respaldo</button>
+      <button class="btn" onclick="exportarCSV()">⬇ Exportar cuotas para Excel (.csv)</button>
+      <button class="btn dan" onclick="borrarTodo()">Borrar todo</button>
+    </div>
+  </div>
+  <h2>Cómo funciona</h2>
+  <div class="card" style="padding:16px" class="hint"><ul style="margin:0;padding-left:18px">
+    <li><b>Reparto de cuotas:</b> el capital se redondea hacia arriba y el interés hacia abajo. La última cuota ajusta la diferencia, así el total cuadra exacto (2000×20%/3 → 667+133 = 800).</li>
+    <li><b>Solo interés:</b> si el cliente no puede pagar la cuota completa, paga solo el interés. Ese pago queda registrado y toda su deuda pendiente se corre un mes (ej.: 3/3 +1 → 4/4).</li>
+    <li><b>Refinanciar:</b> junta el capital pendiente con el interés no pagado, resta un abono o descuento y lo vuelve a repartir en nuevos meses con un nuevo interés.</li>
+    <li><b>WhatsApp:</b> abre WhatsApp con un recordatorio ya escrito. Si guardas el teléfono, va directo a ese contacto (+51).</li>
+  </ul></div>`;
+}
+function descargar(nombre, contenido, tipo){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([contenido], {type:tipo})); a.download = nombre; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+function exportarJSON(){ S.ultimoRespaldo = hoy(); descargar(`financiera-respaldo-${hoy()}.json`, JSON.stringify(S,null,1), 'application/json'); save(); }
+function exportarCSV(){
+  const rows = [['Cliente','Telefono','Cuota','Fecha limite','Capital','Interes','Total','Tipo','Estado','Fecha pago']];
+  S.prestamos.forEach(L => L.cuotas.forEach(c => rows.push([L.cliente, L.tel, posicion(L,c), c.fecha, c.capital, c.interes, c.capital+c.interes, c.tipo==='interes'?'Solo interes':'Normal', c.pagado?'Pagado':(c.fecha<hoy()?'Atrasado':'Pendiente'), c.fechaPago||''])));
+  descargar(`financiera-cuotas-${hoy()}.csv`, '﻿'+rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')).join('\n'), 'text/csv');
+}
+document.getElementById('fileIn').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  f.text().then(t => { const d = JSON.parse(t); if (!Array.isArray(d.prestamos)) throw 0;
+    if (confirm(`¿Reemplazar los datos actuales con el respaldo (${d.prestamos.length} préstamos)?`)) { S = d; S.ejemplo = false; save(); toast('Respaldo restaurado'); }
+  }).catch(() => toast('Ese archivo no es un respaldo válido')); e.target.value = '';
+};
+function borrarTodo(){ if (confirm('¿Borrar todos los préstamos? (Descarga un respaldo antes si quieres conservarlos)')) { S = {prestamos:[], ultimoRespaldo:S.ultimoRespaldo, ejemplo:false}; save(); } }
+
+/* ================= Acciones ================= */
+const buscarL = id => S.prestamos.find(l => l.id === id);
+let deshacer = null;
+function snapshot(){ return JSON.stringify(S.prestamos); }
+function pagar(lid, cid){
+  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), snap = snapshot();
+  c.pagado = true; c.fechaPago = hoy();
+  L.eventos.push({f:hoy(), t:`Pagó cuota ${posicion(L,c)}: ${money(c.capital+c.interes)}`});
+  save(); toast(`${L.cliente}: cuota ${posicion(L,c)} pagada (${money(c.capital+c.interes)})`, snap);
+}
+function despagar(lid, cid){
+  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid);
+  if (!confirm(`¿Marcar la cuota ${posicion(L,c)} de ${L.cliente} como NO pagada?`)) return;
+  c.pagado = false; c.fechaPago = null; L.eventos.push({f:hoy(), t:`Se desmarcó el pago de la cuota ${posicion(L,c)}`}); save();
+}
+function anularInteres(lid, cid){
+  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid);
+  if (!confirm('¿Anular este pago de solo interés? Las cuotas pendientes vuelven un mes atrás.')) return;
+  deshacerSoloInteres(L, c); save();
+}
+function eliminar(lid){ const L = buscarL(lid); if (!confirm(`¿Eliminar el préstamo de ${L.cliente}? Esto borra también su historial.`)) return; const snap = snapshot(); S.prestamos = S.prestamos.filter(l => l !== L); save(); toast('Préstamo eliminado', snap); }
+
+function whatsapp(lid, cid){
+  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), t = hoy();
+  const venc = c.fecha < t ? `venció el ${fD(c.fecha)}` : c.fecha === t ? 'vence hoy' : `vence el ${fD(c.fecha)}`;
+  const msg = `Hola ${L.cliente}, te recuerdo que tu cuota ${posicion(L,c)} de ${money(c.capital+c.interes)} ${venc}. Cualquier cosa me avisas. ¡Gracias!`;
+  let tel = (L.tel||'').replace(/\D/g,''); if (tel.length === 9) tel = '51'+tel;
+  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+/* ---------- Diálogos ---------- */
+const dlg = document.getElementById('dlg');
+function dialogo(titulo, html, onOk, txtOk='Guardar', onInput){
+  document.getElementById('dlgTitle').textContent = titulo;
+  document.getElementById('dlgBody').innerHTML = html;
+  document.getElementById('dlgOk').textContent = txtOk;
+  const body = document.getElementById('dlgBody');
+  body.oninput = onInput ? () => onInput(body) : null;
+  if (onInput) onInput(body);
+  dlg.onclose = () => { if (dlg.returnValue === 'ok') onOk(body); };
+  dlg.returnValue = ''; dlg.showModal();
+}
+const val = (b,n) => b.querySelector(`[name=${n}]`).value;
+
+function dlgSoloInteres(lid, cid){
+  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid);
+  dialogo(`${L.cliente} paga solo interés`, `<div class="form">
+    <label>Monto de interés (S/)<input name="m" type="number" step="any" value="${c.interes}"></label>
+    <label>Fecha de pago<input name="f" type="date" value="${hoy()}"></label>
+    <p class="full hint" id="expl" style="margin:0"></p></div>`,
+    b => { const s = snapshot(); aplicarSoloInteres(L, c, +val(b,'m')||0, val(b,'f')||hoy()); save(); toast(`${L.cliente}: la deuda se corrió un mes`, s); },
+    'Registrar', b => {
+      const restantes = pendientes(L).filter(q => q.fecha >= c.fecha);
+      b.querySelector('#expl').innerHTML = `Se registra el pago de <b>${money(+val(b,'m')||0)}</b> y las ${restantes.length} cuota(s) pendientes se corren un mes. La cuota de ${money(c.capital+c.interes)} pasa del <b>${fD(c.fecha)}</b> al <b>${fD(addMonths(c.fecha,1,L.dia))}</b>. El préstamo queda en ${L.cuotas.length+1} cuotas (${normales(L).length} normales + ${extrasInteres(L)+1} solo interés).`;
+    });
+}
+
+function dlgEditar(lid){
+  const L = buscarL(lid);
+  dialogo('Editar préstamo', `<div class="form">
+    <label>Cliente<input name="c" value="${esc(L.cliente)}"></label>
+    <label>Teléfono<input name="t" value="${esc(L.tel)}"></label>
+    <label class="full">Fórmula (como en tu nota)<textarea name="fo" rows="2">${esc(L.formula)}</textarea></label>
+    <label class="full">Nota<textarea name="n" rows="3">${esc(L.nota)}</textarea></label></div>`,
+    b => { L.cliente = val(b,'c').trim() || L.cliente; L.tel = val(b,'t').trim(); L.nota = val(b,'n').trim(); L.formula = val(b,'fo').trim(); save(); });
+}
+
+function dlgCuota(lid, cid){
+  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid);
+  dialogo(`Editar cuota ${posicion(L,c)} de ${L.cliente}`, `<div class="form">
+    <label>Fecha límite<input name="f" type="date" value="${c.fecha}"></label>
+    <label>Capital<input name="c" type="number" step="any" value="${c.capital}"></label>
+    <label>Interés<input name="i" type="number" step="any" value="${c.interes}"></label></div>`,
+    b => { c.fecha = val(b,'f') || c.fecha; c.capital = +val(b,'c')||0; c.interes = +val(b,'i')||0; L.cuotas.sort((a,b)=>a.fecha.localeCompare(b.fecha)); L.eventos.push({f:hoy(), t:'Se editó una cuota manualmente'}); save(); });
+}
+
+function dlgRefinanciar(lid){
+  const L = buscarL(lid), pend = pendientes(L);
+  const capPend = r2(pend.reduce((s,c)=>s+c.capital,0)), intPend = r2(pend.reduce((s,c)=>s+c.interes,0));
+  const prox = pend[0].fecha < hoy() ? addMonths(hoy(),1,L.dia) : pend[0].fecha;
+  dialogo(`Refinanciar a ${L.cliente}`, `<div class="form">
+    <label>Capital pendiente<input name="cap" type="number" step="any" value="${capPend}"></label>
+    <label>Interés no pagado que se suma<input name="ia" type="number" step="any" value="${intPend}"></label>
+    <label>Abono / descuento (se resta)<input name="ab" type="number" step="any" value="0"></label>
+    <label>Nuevos meses<input name="m" type="number" min="1" step="1" value="${pend.length}"></label>
+    <label>Nuevo interés<select name="mo"><option value="mes">Monto fijo por mes (S/)</option><option value="fijo">Monto fijo total (S/)</option><option value="pct">% sobre la nueva base</option></select></label>
+    <label>Valor<input name="v" type="number" step="any" value="25"></label>
+    <label>Primera fecha límite<input name="f" type="date" value="${prox}"></label>
+    <div class="full" id="rprev"></div></div>`,
+    b => {
+      const o = leerRefi(b); if (!o) return;
+      L.cuotas = L.cuotas.filter(c => c.pagado);
+      const nuevo = crearPrestamo({cliente:L.cliente, capital:o.base, modo:o.modo, valor:o.valor, meses:o.meses, primera:o.primera, extra:o.extra});
+      L.cuotas.push(...nuevo.cuotas); L.dia = nuevo.dia; L.formula = nuevo.formula;
+      L.eventos.push({f:hoy(), t:`Refinanciado: ${o.extra}, ${o.meses} meses`});
+      save(); toast(`${L.cliente} refinanciado`);
+    }, 'Refinanciar', b => {
+      const o = leerRefi(b), el = b.querySelector('#rprev');
+      if (!o) { el.innerHTML = ''; return; }
+      const n = crearPrestamo({cliente:'x', capital:o.base, modo:o.modo, valor:o.valor, meses:o.meses, primera:o.primera, extra:o.extra});
+      el.innerHTML = `<div class="formula" style="margin:0">${esc(n.formula).replace(/\n/g,'<br>')} (${fD(n.cuotas[0].fecha)})</div><p class="hint">Las cuotas pendientes actuales se reemplazan; los pagos ya hechos se conservan.</p>`;
+    });
+}
+function leerRefi(b){
+  const cap = +val(b,'cap')||0, ia = +val(b,'ia')||0, ab = +val(b,'ab')||0, meses = Math.max(1,parseInt(val(b,'m'))||1);
+  const base = r2(cap+ia-ab); if (base <= 0 || !val(b,'f')) return null;
+  return {base, meses, modo:val(b,'mo'), valor:+val(b,'v')||0, primera:val(b,'f'), extra:`${num(cap)}cap+${num(ia)}int${ab?'-'+num(ab):''}=${num(base)}`};
+}
+
+/* ---------- Toast ---------- */
+let tTimer;
+function toast(msg, snap){
+  const t = document.getElementById('toast'), u = document.getElementById('toastUndo');
+  document.getElementById('toastMsg').textContent = msg;
+  u.style.display = snap ? '' : 'none';
+  u.onclick = () => { S.prestamos = JSON.parse(snap); save(); t.style.display = 'none'; };
+  t.style.display = 'flex'; clearTimeout(tTimer); tTimer = setTimeout(() => t.style.display = 'none', 5000);
+}
+
+render();
+if (persist) try { if (!localStorage.getItem(KEY)) localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){}
+// Pide al navegador no borrar los datos aunque falte espacio, y deja la app disponible sin internet.
+if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

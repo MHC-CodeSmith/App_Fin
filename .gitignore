@@ -1,0 +1,5 @@
+# Respaldos con datos reales de clientes: nunca subirlos
+financiera-respaldo-*.json
+*.json
+!manifest.webmanifest
+.claude/
