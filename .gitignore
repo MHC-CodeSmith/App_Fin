@@ -1,4 +1,5 @@
 # Respaldos con datos reales de clientes: nunca subirlos
+belu-bank-respaldo-*.json
 financiera-respaldo-*.json
 *.json
 !manifest.webmanifest

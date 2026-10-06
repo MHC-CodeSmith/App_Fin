@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mi Financiera</title>
+<title>Belu Bank</title>
 <meta name="theme-color" content="#2f7d5b">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Financiera">
+<meta name="apple-mobile-web-app-title" content="Belu Bank">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -125,7 +125,7 @@ dialog .df{display:flex;justify-content:flex-end;gap:8px;padding:0 16px 16px}
 </head>
 <body>
 <header><div class="top">
-  <h1>Mi <span>Financiera</span></h1>
+  <h1>Belu <span>Bank</span></h1>
   <nav id="nav">
     <button data-v="inicio" class="on">Cobros</button>
     <button data-v="prestamos">Préstamos</button>
@@ -306,7 +306,7 @@ function vPrestamos(){
   const q = filtro.toLowerCase();
   const lista = S.prestamos.filter(L => !q || L.cliente.toLowerCase().includes(q))
     .sort((a,b) => { const pa = pendientes(a)[0], pb = pendientes(b)[0]; if (!pa) return 1; if (!pb) return -1; return pa.fecha.localeCompare(pb.fecha); });
-  app.innerHTML = bannerRespaldo() + `<div class="toolbar"><input id="buscar" placeholder="Buscar cliente…" value="${esc(filtro)}"><span class="hint">${S.prestamos.length} préstamos en total</span><span style="flex:1"></span><button class="btn pri" onclick="ir('nuevo')">+ Nuevo préstamo</button></div>
+  app.innerHTML = bannerRespaldo() + `<div class="toolbar"><input id="buscar" placeholder="Buscar cliente…" value="${esc(filtro)}"><span class="hint">${S.prestamos.length} préstamos en total</span><span style="flex:1"></span><button class="btn" onclick="exportarExcel()">⬇ Excel</button><button class="btn pri" onclick="ir('nuevo')">+ Nuevo préstamo</button></div>
   <div class="loans">${lista.map(tarjeta).join('') || '<div class="card empty">Sin préstamos.</div>'}</div>`;
   const b = document.getElementById('buscar');
   b.oninput = () => { filtro = b.value; const pos = b.selectionStart; vPrestamos(); const nb = document.getElementById('buscar'); nb.focus(); nb.setSelectionRange(pos,pos); };
@@ -426,11 +426,12 @@ function vRespaldo(){
   app.innerHTML = `<h2>Respaldo de datos</h2>
   <div class="card" style="padding:16px">
     <p style="margin-top:0">Tus datos se guardan <b>solo en este navegador y esta computadora</b>; no se suben a internet. Si borras el historial del navegador o cambias de equipo, se pierden, así que <b>descarga un respaldo cada semana</b>.</p>
+    <p class="hint"><b>Excel:</b> para ver, imprimir o guardar tus datos en Excel o Google Sheets (préstamos, cuotas y resumen por mes). Para restaurar la app usa siempre el respaldo .json.</p>
     <p class="hint">Último respaldo: ${S.ultimoRespaldo ? fD(S.ultimoRespaldo) : 'nunca'}</p>
     <div class="acts">
       <button class="btn pri" onclick="exportarJSON()">⬇ Descargar respaldo (.json)</button>
       <button class="btn" onclick="document.getElementById('fileIn').click()">⬆ Restaurar respaldo</button>
-      <button class="btn" onclick="exportarCSV()">⬇ Exportar cuotas para Excel (.csv)</button>
+      <button class="btn" onclick="exportarExcel()">⬇ Descargar Excel (.xlsx)</button>
       <button class="btn dan" onclick="borrarTodo()">Borrar todo</button>
     </div>
   </div>
@@ -445,11 +446,202 @@ function vRespaldo(){
 function descargar(nombre, contenido, tipo){
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([contenido], {type:tipo})); a.download = nombre; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 }
-function exportarJSON(){ S.ultimoRespaldo = hoy(); descargar(`financiera-respaldo-${hoy()}.json`, JSON.stringify(S,null,1), 'application/json'); save(); }
-function exportarCSV(){
-  const rows = [['Cliente','Telefono','Cuota','Fecha limite','Capital','Interes','Total','Tipo','Estado','Fecha pago']];
-  S.prestamos.forEach(L => L.cuotas.forEach(c => rows.push([L.cliente, L.tel, posicion(L,c), c.fecha, c.capital, c.interes, c.capital+c.interes, c.tipo==='interes'?'Solo interes':'Normal', c.pagado?'Pagado':(c.fecha<hoy()?'Atrasado':'Pendiente'), c.fechaPago||''])));
-  descargar(`financiera-cuotas-${hoy()}.csv`, '﻿'+rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')).join('\n'), 'text/csv');
+function exportarJSON(){ S.ultimoRespaldo = hoy(); descargar(`belu-bank-respaldo-${hoy()}.json`, JSON.stringify(S,null,1), 'application/json'); save(); }
+/* ================= Exportar a Excel (.xlsx), sin librerías ================= */
+/* Un .xlsx es un ZIP con archivos XML. Se arma aquí mismo para que funcione sin internet.
+   Las fórmulas llevan su resultado ya calculado, así el archivo se ve bien incluso en
+   visores que no recalculan (vista previa de WhatsApp o Drive). */
+const XLSX = (() => {
+  const enc = new TextEncoder();
+  const T = new Uint32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+
+  function zip(files){
+    const parts = [], central = []; let off = 0;
+    for (const f of files){
+      const name = enc.encode(f.name), data = enc.encode(f.data), crc = crc32(data);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);
+      h.setUint16(12, 0x21, true); h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true);
+      h.setUint16(26, name.length, true);
+      parts.push(new Uint8Array(h.buffer), name, data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+      c.setUint16(14, 0x21, true); c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true);
+      c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+      central.push(new Uint8Array(c.buffer), name);
+      off += 30 + name.length + data.length;
+    }
+    const size = central.reduce((s, a) => s + a.length, 0), e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+    e.setUint32(12, size, true); e.setUint32(16, off, true);
+    return new Blob([...parts, ...central, new Uint8Array(e.buffer)], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  }
+
+  const x = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const col = i => { let s = ''; for (i++; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + (i - 1) % 26) + s; return s; };
+
+  function cell(v, ref){
+    if (v === null || v === undefined) return '';
+    if (typeof v !== 'object') v = {v};
+    const s = v.s ? ` s="${v.s}"` : '';
+    if (v.f !== undefined){
+      const f = `<f>${x(v.f)}</f>`;
+      if (typeof v.v === 'number') return `<c r="${ref}"${s}>${f}<v>${v.v}</v></c>`;
+      return `<c r="${ref}"${s} t="str">${f}<v>${x(v.v ?? '')}</v></c>`;
+    }
+    if (typeof v.v === 'number') return `<c r="${ref}"${s}><v>${v.v}</v></c>`;
+    if (v.v === '' ) return s ? `<c r="${ref}"${s}/>` : '';
+    return `<c r="${ref}"${s} t="inlineStr"><is><t xml:space="preserve">${x(v.v)}</t></is></c>`;
+  }
+
+  function sheet(sh, selected){
+    const rows = sh.rows.map((r, i) => `<row r="${i + 1}"${i === 0 && sh.headerRow ? ' ht="30" customHeight="1"' : ''}>${r.map((v, j) => cell(v, col(j) + (i + 1))).join('')}</row>`).join('');
+    const pane = sh.freeze ? `<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>` : '';
+    const cols = `<cols>${sh.cols.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>`;
+    let p = 1;
+    const cf = (sh.cf || []).map(c => `<conditionalFormatting sqref="${c.ref}">${c.rules.map(r => `<cfRule type="expression" dxfId="${r.dxf}" priority="${p++}"><formula>${x(r.f)}</formula></cfRule>`).join('')}</conditionalFormatting>`).join('');
+    const dv = sh.dv?.length ? `<dataValidations count="${sh.dv.length}">${sh.dv.map(d => `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${d.ref}"><formula1>${x('"' + d.list.join(',') + '"')}</formula1></dataValidation>`).join('')}</dataValidations>` : '';
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"${selected ? ' tabSelected="1"' : ''}${sh.grid === false ? ' showGridLines="0"' : ''}>${pane}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/>${cols}<sheetData>${rows}</sheetData>${sh.filter ? `<autoFilter ref="${sh.filter}"/>` : ''}${cf}${dv}<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>`;
+  }
+
+  // Estilos: 1 encabezado verde · 2 dinero · 3 fecha · 4 texto con borde · 5 título · 6 dinero negrita
+  //          7 enlace · 8 encabezado gris · 9 negrita · 10 nota gris · 11 número con borde
+  const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="&quot;S/ &quot;#,##0.00"/><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/></numFmts><fonts count="6"><font><sz val="10"/><name val="Arial"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font><font><b/><sz val="14"/><color rgb="FF2F7D5B"/><name val="Arial"/></font><font><u/><sz val="10"/><color rgb="FF1F9D55"/><name val="Arial"/></font><font><i/><sz val="9"/><color rgb="FF66756D"/><name val="Arial"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2F7D5B"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF66756D"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FFDFE7E2"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="12"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="2" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1"/><xf numFmtId="0" fontId="4" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/><xf numFmtId="0" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="5" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="1" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles><dxfs count="3"><dxf><font><color rgb="FFC2412D"/></font><fill><patternFill patternType="solid"><bgColor rgb="FFFBE9E5"/></patternFill></fill></dxf><dxf><fill><patternFill patternType="solid"><bgColor rgb="FFFDF2DC"/></patternFill></fill></dxf><dxf><font><color rgb="FF999999"/></font></dxf></dxfs></styleSheet>`;
+
+  function book(sheets){
+    const NS = 'http://schemas.openxmlformats.org';
+    return zip([
+      {name:'[Content_Types].xml', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="${NS}/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`},
+      {name:'_rels/.rels', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="${NS}/package/2006/relationships"><Relationship Id="rId1" Type="${NS}/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
+      {name:'xl/workbook.xml', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="${NS}/spreadsheetml/2006/main" xmlns:r="${NS}/officeDocument/2006/relationships"><bookViews><workbookView activeTab="0"/></bookViews><sheets>${sheets.map((s, i) => `<sheet name="${x(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`},
+      {name:'xl/_rels/workbook.xml.rels', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="${NS}/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${NS}/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="${NS}/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
+      {name:'xl/styles.xml', data:STYLES},
+      ...sheets.map((s, i) => ({name:`xl/worksheets/sheet${i + 1}.xml`, data:sheet(s, i === 0)})),
+    ]);
+  }
+  return {book, col};
+})();
+
+const serial = s => (Date.UTC(...(p => [p.y, p.m - 1, p.d])(P(s))) - Date.UTC(1899, 11, 30)) / 864e5;
+// Excel no acepta textos de más de 255 caracteres dentro de una fórmula: se parten en trozos unidos con &.
+const xlText = s => s.match(/[\s\S]{1,200}/g).map(p => '"' + p.replace(/"/g, '""') + '"').join('&');
+
+function construirExcel(){
+  const t = hoy();
+  const eom = (() => { const p = P(t); return t.slice(0, 8) + pad(new Date(p.y, p.m, 0).getDate()); })();
+  const num = new Map(S.prestamos.map((L, i) => [L, i + 1]));
+  const filas = [];
+  S.prestamos.forEach(L => L.cuotas.forEach(c => filas.push({L, c})));
+  filas.sort((a, b) => a.c.fecha.localeCompare(b.c.fecha) || num.get(a.L) - num.get(b.L));
+  const n = Math.max(2, filas.length + 1);
+  const R = c => `Cuotas!$${c}$2:$${c}$${n}`;
+  const situacion = c => c.pagado ? 'Pagado' : c.fecha < t ? 'Atrasado' : c.fecha <= eom ? 'Este mes' : 'Pendiente';
+  const H = (txt, gris) => ({v:txt, s:gris ? 8 : 1});
+
+  /* ---- Cuotas ---- */
+  const cuotas = [[H('Préstamo N°'), H('Cliente'), H('Cuota'), H('Tipo'), H('Fecha límite'), H('Capital'), H('Interés'), H('Total', 1), H('Estado'), H('Fecha de pago'), H('Días de atraso', 1), H('Situación', 1), H('Recordatorio', 1)]];
+  filas.forEach(({L, c}, i) => {
+    const r = i + 2, tot = r2(c.capital + c.interes), sit = situacion(c);
+    let wa = '';
+    if (!c.pagado){
+      const venc = c.fecha < t ? `venció el ${fD(c.fecha)}` : `vence el ${fD(c.fecha)}`;
+      const msg = `Hola ${L.cliente}, te recuerdo que tu cuota ${posicion(L, c)} de ${money(tot)} ${venc}. ¡Gracias!`;
+      let tel = (L.tel || '').replace(/\D/g, ''); if (tel.length === 9) tel = '51' + tel;
+      wa = {f:`HYPERLINK(${xlText(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`)},"WhatsApp")`, v:'WhatsApp', s:7};
+    }
+    cuotas.push([
+      {v:num.get(L), s:11}, {v:L.cliente, s:4}, {v:posicion(L, c), s:4}, {v:c.tipo === 'interes' ? 'Solo interés' : 'Normal', s:4},
+      {v:serial(c.fecha), s:3}, {v:c.capital, s:2}, {v:c.interes, s:2},
+      {f:`F${r}+G${r}`, v:tot, s:2},
+      {v:c.pagado ? 'Pagado' : 'Pendiente', s:4}, c.fechaPago ? {v:serial(c.fechaPago), s:3} : {v:'', s:3},
+      {f:`IF(I${r}="Pagado","",MAX(0,TODAY()-E${r}))`, v:c.pagado ? '' : Math.max(0, daysBetween(c.fecha, t)), s:11},
+      {f:`IF(I${r}="Pagado","Pagado",IF(E${r}<TODAY(),"Atrasado",IF(E${r}<=EOMONTH(TODAY(),0),"Este mes","Pendiente")))`, v:sit, s:4},
+      wa,
+    ]);
+  });
+
+  /* ---- Préstamos ---- */
+  const prest = [[H('N°'), H('Cliente'), H('Teléfono'), H('Fórmula (como en la nota)'), H('Capital prestado'), H('Interés total'), H('Cuotas'),
+    H('Capital pendiente', 1), H('Interés por cobrar', 1), H('Interés cobrado', 1), H('Próximo vencimiento'), H('Pagadas'), H('Estado'), H('Nota')]];
+  S.prestamos.forEach((L, i) => {
+    const r = i + 2, k = num.get(L), pend = pendientes(L), pag = L.cuotas.filter(c => c.pagado);
+    const sum = (arr, f) => r2(arr.reduce((s, c) => s + c[f], 0));
+    prest.push([
+      {v:k, s:11}, {v:L.cliente, s:4}, {v:L.tel || '', s:4}, {v:(L.formula || '').replace(/\n/g, '  →  '), s:4},
+      {v:L.capital, s:2}, {v:sum(L.cuotas, 'interes'), s:2}, {v:L.cuotas.length, s:11},
+      {f:`SUMIFS(${R('F')},${R('A')},A${r},${R('I')},"Pendiente")`, v:sum(pend, 'capital'), s:2},
+      {f:`SUMIFS(${R('G')},${R('A')},A${r},${R('I')},"Pendiente")`, v:sum(pend, 'interes'), s:2},
+      {f:`SUMIFS(${R('G')},${R('A')},A${r},${R('I')},"Pagado")`, v:sum(pag, 'interes'), s:2},
+      pend.length ? {v:serial(pend[0].fecha), s:3} : {v:'—', s:4},
+      {v:`${pag.length}/${L.cuotas.length}`, s:4}, {v:estadoPrestamo(L).t, s:4}, {v:L.nota || '', s:4},
+    ]);
+  });
+  const np = Math.max(2, S.prestamos.length + 1);
+
+  /* ---- Resumen ---- */
+  const todas = filas.map(f => f.c);
+  const sumWhere = (pred, f) => r2(todas.filter(pred).reduce((s, c) => s + (f === 'tot' ? c.capital + c.interes : c[f]), 0));
+  const enMes = (c, m) => c.pagado && c.fechaPago && mesKey(c.fechaPago) === m;
+  const mesAct = t.slice(0, 7), anio = +t.slice(0, 4);
+  const MESL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const pagadoMes = `${R('I')},"Pagado",${R('J')},">"&EOMONTH(TODAY(),-1),${R('J')},"<="&EOMONTH(TODAY(),0)`;
+  const kpis = [
+    ['Capital en la calle', `SUMIFS(${R('F')},${R('I')},"Pendiente")`, sumWhere(c => !c.pagado, 'capital')],
+    ['Interés por cobrar', `SUMIFS(${R('G')},${R('I')},"Pendiente")`, sumWhere(c => !c.pagado, 'interes')],
+    ['Por cobrar este mes (incluye atrasados)', `SUMIFS(${R('H')},${R('I')},"Pendiente",${R('E')},"<="&EOMONTH(TODAY(),0))`, sumWhere(c => !c.pagado && c.fecha <= eom, 'tot')],
+    ['Cobrado este mes', `SUMIFS(${R('H')},${pagadoMes})`, sumWhere(c => enMes(c, mesAct), 'tot')],
+    ['Ganancia (interés) este mes', `SUMIFS(${R('G')},${pagadoMes})`, sumWhere(c => enMes(c, mesAct), 'interes')],
+    ['Monto atrasado', `SUMIFS(${R('H')},${R('I')},"Pendiente",${R('E')},"<"&TODAY())`, sumWhere(c => !c.pagado && c.fecha < t, 'tot')],
+    ['Ganancia total (interés cobrado)', `SUMIFS(${R('G')},${R('I')},"Pagado")`, sumWhere(c => c.pagado, 'interes')],
+  ];
+  const res = [
+    [{v:'Belu Bank · Resumen', s:5}],
+    [{v:`Generado desde la app el ${fD(t)}${fD(t).length === 5 ? '/' + anio : ''}. Para restaurar la app usa el respaldo .json, no este archivo.`, s:10}],
+    [],
+    ...kpis.map(([l, f, v]) => [{v:l, s:4}, {f, v, s:6}]),
+    [{v:'Cuotas atrasadas', s:4}, {f:`COUNTIFS(${R('I')},"Pendiente",${R('E')},"<"&TODAY())`, v:todas.filter(c => !c.pagado && c.fecha < t).length, s:11}],
+    [{v:'Préstamos activos', s:4}, {f:`COUNTIF('Préstamos'!$M$2:$M$${np},"Al día")+COUNTIF('Préstamos'!$M$2:$M$${np},"Atrasado")`, v:S.prestamos.filter(L => pendientes(L).length).length, s:11}],
+    [],
+    [{v:'Año', s:9}, {v:anio, s:11}],
+    [H('Mes', 1), H('Por cobrar (pendiente)', 1), H('Capital cobrado', 1), H('Interés ganado', 1), H('Total cobrado', 1)],
+  ];
+  const yRow = res.length - 1, first = res.length + 1;
+  MESL.forEach((m, i) => {
+    const r = res.length + 1, key = `${anio}-${pad(i + 1)}`;
+    const ini = `DATE($B$${yRow},${i + 1},1)`, fin = `EOMONTH(DATE($B$${yRow},${i + 1},1),0)`;
+    const rng = c => `${R(c)},">="&${ini},${R(c)},"<="&${fin}`;
+    const cap = sumWhere(c => enMes(c, key), 'capital'), int = sumWhere(c => enMes(c, key), 'interes');
+    res.push([{v:m, s:4},
+      {f:`SUMIFS(${R('H')},${R('I')},"Pendiente",${rng('E')})`, v:sumWhere(c => !c.pagado && mesKey(c.fecha) === key, 'tot'), s:2},
+      {f:`SUMIFS(${R('F')},${R('I')},"Pagado",${rng('J')})`, v:cap, s:2},
+      {f:`SUMIFS(${R('G')},${R('I')},"Pagado",${rng('J')})`, v:int, s:2},
+      {f:`C${r}+D${r}`, v:r2(cap + int), s:2}]);
+  });
+  const last = res.length;
+  res.push([{v:'Total del año', s:9}, ...['B', 'C', 'D', 'E'].map(c => {
+    let v = 0; for (let r = first; r <= last; r++) v += res[r - 1][c.charCodeAt(0) - 65].v; return {f:`SUM(${c}${first}:${c}${last})`, v:r2(v), s:6};
+  })]);
+
+  const ref = `A2:M${n}`;
+  return XLSX.book([
+    {name:'Resumen', cols:[38, 20, 16, 16, 16], rows:res, grid:false},
+    {name:'Préstamos', cols:[6, 20, 13, 42, 12, 12, 8, 13, 12, 12, 13, 9, 11, 50], rows:prest, freeze:true, headerRow:true, filter:`A1:N${np}`,
+      cf:[{ref:`A2:N${np}`, rules:[{f:'$M2="Atrasado"', dxf:0}, {f:'$M2="Pagado"', dxf:2}]}]},
+    {name:'Cuotas', cols:[9, 20, 8, 12, 12, 12, 12, 12, 11, 12, 9, 11, 12], rows:cuotas, freeze:true, headerRow:true, filter:`A1:M${n}`,
+      cf:[{ref, rules:[{f:'$L2="Atrasado"', dxf:0}, {f:'$L2="Este mes"', dxf:1}, {f:'$L2="Pagado"', dxf:2}]}],
+      dv:[{ref:`I2:I${n + 200}`, list:['Pendiente', 'Pagado']}, {ref:`D2:D${n + 200}`, list:['Normal', 'Solo interés']}]},
+  ]);
+}
+function exportarExcel(){
+  try { descargar(`belu-bank-${hoy()}.xlsx`, construirExcel(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); toast('Excel descargado'); }
+  catch(e){ console.error(e); toast('No se pudo generar el Excel'); }
 }
 document.getElementById('fileIn').onchange = e => {
   const f = e.target.files[0]; if (!f) return;

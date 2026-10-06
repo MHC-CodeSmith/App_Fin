@@ -1,6 +1,6 @@
 {
-  "name": "Mi Financiera",
-  "short_name": "Financiera",
+  "name": "Belu Bank",
+  "short_name": "Belu Bank",
   "description": "Control de préstamos y cobros",
   "lang": "es",
   "start_url": "./",

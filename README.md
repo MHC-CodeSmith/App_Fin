@@ -1,14 +1,14 @@
-# Mi Financiera
+# Belu Bank
 
 App web para controlar préstamos y cobros: cuotas con capital e interés, atrasos, pagos de "solo interés", refinanciamientos, ganancia por mes y recordatorios por WhatsApp. Moneda: soles (S/).
 
-Funciona en el celular como app instalada y también sin internet.
+Funciona en el celular como app instalada y también sin internet. Con un botón descarga todo en Excel (`.xlsx`) para verlo, imprimirlo o guardarlo en Excel o Google Sheets.
 
 ## Privacidad
 
 Este repositorio es público y **solo contiene la app y datos de ejemplo ficticios**.
 Los préstamos reales se guardan únicamente en el navegador de quien usa la app (`localStorage`) y nunca se suben a GitHub.
-No hagas commit de los archivos de respaldo (`financiera-respaldo-*.json`); el `.gitignore` ya los excluye.
+No hagas commit de los archivos de respaldo (`belu-bank-respaldo-*.json`); el `.gitignore` ya los excluye.
 
 ## Publicar (GitHub Pages), una sola vez
 
@@ -20,7 +20,7 @@ No hagas commit de los archivos de respaldo (`financiera-respaldo-*.json`); el `
 
 1. Abre el enlace de arriba en **Chrome**.
 2. Menú **⋮ → Agregar a pantalla principal** (o **Instalar app**).
-3. Aparece el ícono **Financiera**; ábrela desde ahí.
+3. Aparece el ícono **Belu Bank**; ábrela desde ahí.
 4. Pestaña **Respaldo → Empezar vacío**, o **Restaurar respaldo** para cargar un `.json` traído de otro equipo.
 
 En iPhone: Safari → botón Compartir → **Agregar a inicio**.
@@ -31,6 +31,16 @@ Los datos viven solo en ese celular. Si se borran los datos de Chrome o se cambi
 Descarga un respaldo cada semana: **Respaldo → Descargar respaldo (.json)** y guárdalo en Drive o envíalo a tu WhatsApp.
 Para pasar los datos a otro equipo: descarga el respaldo en uno y usa **Restaurar respaldo** en el otro.
 Cada equipo guarda su propia copia; no se sincronizan solos.
+
+## Excel
+
+**Respaldo → Descargar Excel (.xlsx)** (o el botón **⬇ Excel** en Préstamos) genera un archivo con 3 hojas:
+
+- **Resumen**: capital en la calle, por cobrar del mes, cobrado, ganancia, atrasos y totales mes a mes.
+- **Préstamos**: un préstamo por fila, con lo pendiente y lo cobrado.
+- **Cuotas**: cada cuota con su fecha, estado, días de atraso y enlace de WhatsApp. En el Excel se puede cambiar el Estado a *Pagado* y el Resumen se recalcula.
+
+El Excel es para ver y guardar. Para restaurar la app se usa siempre el respaldo `.json`.
 
 ## Reglas de cálculo
 
@@ -43,7 +53,6 @@ Cada equipo guarda su propia copia; no se sincronizan solos.
 
 | Archivo | Qué es |
 |---|---|
-| `index.html` | La app completa (HTML + CSS + JS, sin dependencias) |
+| `index.html` | La app completa (HTML + CSS + JS, sin dependencias; el Excel se genera ahí mismo) |
 | `manifest.webmanifest`, `icons/` | Para instalarla como app en el celular |
 | `sw.js` | Guarda la app para que abra sin internet |
-| `Financiera.xlsx` | Versión en Excel (plantilla con ejemplos ficticios) |
