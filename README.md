@@ -84,14 +84,12 @@ El cliente ve solo su préstamo: lo pagado, lo que falta, la próxima cuota y la
 
 La pestaña **Respaldo → Google Drive** guarda en la carpeta *Belu Bank* del Drive el respaldo (`belu-bank-respaldo.json`), el Excel (`Belu Bank.xlsx`) y los adjuntos (carpeta *Adjuntos*), manualmente o automáticamente después de cada cambio.
 
-Para activarlo hay que crear una vez un ID de cliente de Google (gratis, unos 10 minutos):
+Configuración (ya hecha en el proyecto `belu-bank`):
 
-1. Entra a <https://console.cloud.google.com/> y crea un proyecto, por ejemplo *Belu Bank*.
-2. **APIs y servicios → Biblioteca**: busca **Google Drive API** y pulsa **Habilitar**.
-3. **Google Auth Platform → Branding** (pantalla de consentimiento): nombre *Belu Bank*, tu correo de soporte. Tipo de usuarios: **Externo**.
-4. **Público (Audience)**: agrega como *usuario de prueba* el Gmail que va a usar la app (o pulsa *Publicar app*; el permiso `drive.file` no necesita verificación de Google).
-5. **Clientes → Crear cliente → Aplicación web**. En *Orígenes autorizados de JavaScript* agrega `https://mhc-codesmith.github.io`. Crea y copia el **ID de cliente** (termina en `.apps.googleusercontent.com`).
-6. En `index.html`, pega el ID en `const GOOGLE_CLIENT_ID = '';` y haz commit.
+- **Google Drive API** habilitada en el proyecto.
+- `GOOGLE_CLIENT_ID` en `index.html` es el cliente web que Firebase creó al activar el inicio de sesión con Google
+  (Google Cloud → APIs y servicios → Credenciales → *Web client (auto created by Google Service)*).
+  En ese cliente, *Orígenes autorizados de JavaScript* debe incluir `https://mhc-codesmith.github.io`.
 
 La app solo pide el permiso `drive.file`: puede ver y modificar únicamente los archivos que ella misma crea, no el resto del Drive.
 El ID de cliente no es secreto (Google lo diseña para ir en el código de la página).
