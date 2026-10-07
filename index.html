@@ -309,7 +309,9 @@ function bannerRespaldo(){
   let h = '';
   if (!persist) h += `<div class="banner">⚠️ Este navegador no permite guardar datos aquí. Usa “Respaldo → Exportar” antes de cerrar.</div>`;
   const u = S.ultimoRespaldo;
-  if (persist && !nubeActiva() && (!u || daysBetween(u, hoy()) > 7)) h += `<div class="banner">💾 ${u ? 'Tu último respaldo fue hace '+daysBetween(u,hoy())+' días.' : 'Aún no tienes un respaldo.'} Los datos viven solo en este navegador. <button class="btn sm" onclick="exportarJSON()">Descargar respaldo</button></div>`;
+  const sinNube = !nube.uid && !localStorage.getItem(KEY_NUBE);
+  if (sinNube) h += `<div class="banner" style="background:var(--brand-soft);color:var(--brand)">☁ Guarda tus préstamos en la nube con tu cuenta de Google: no se pierden si cambias de celular y los ves también en la computadora. <button class="btn sm pri" onclick="entrarNube()" ${nube.estado === 'conectando' ? 'disabled' : ''}>${nube.estado === 'conectando' ? 'Conectando…' : 'Entrar con Google'}</button></div>`;
+  else if (persist && !nubeActiva() && (!u || daysBetween(u, hoy()) > 7)) h += `<div class="banner">💾 ${u ? 'Tu último respaldo fue hace '+daysBetween(u,hoy())+' días.' : 'Aún no tienes un respaldo.'} Los datos viven solo en este navegador. <button class="btn sm" onclick="exportarJSON()">Descargar respaldo</button></div>`;
   if (S.drive?.auto && GOOGLE_CLIENT_ID && !Drive.listo()) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">☁ Google Drive está desconectado; tus cambios no se están copiando. <button class="btn sm" onclick="sincronizarDrive(true)">Conectar y guardar</button></div>`;
   if (localStorage.getItem(KEY_NUBE) && nube.sinSesion) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">☁ Tu sesión de la nube se cerró; los cambios no se están sincronizando. <button class="btn sm" onclick="entrarNube()">Entrar con Google</button></div>`;
   if (S.ejemplo) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">Estos préstamos son de ejemplo, para que veas cómo funciona. Cuando quieras, empieza vacío o restaura tu respaldo. <button class="btn sm" onclick="S={prestamos:[],ultimoRespaldo:S.ultimoRespaldo,ejemplo:false};save()">Empezar vacío</button> <button class="btn sm" onclick="document.getElementById('fileIn').click()">Restaurar respaldo</button></div>`;
@@ -1032,7 +1034,7 @@ function pintarNube(){
   el.textContent = sinRed ? '☁ sin internet · se guardará al volver' : ({ok:'☁ sincronizado', subiendo:'☁ guardando…', conectando:'☁ conectando…', error:'☁ error'}[nube.estado] || '');
   el.style.color = nube.estado === 'error' ? 'var(--red)' : nube.estado === 'ok' && !sinRed ? 'var(--brand)' : '';
 }
-function ponerEstadoNube(e){ nube.estado = e; pintarNube(); if (vista === 'respaldo' && !dlg.open) render(); }
+function ponerEstadoNube(e){ nube.estado = e; pintarNube(); if (vista !== 'nuevo' && !dlg.open) render(); }
 function errorNube(e){
   console.error(e);
   const c = e?.code || '';
