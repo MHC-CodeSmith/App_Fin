@@ -1,0 +1,31 @@
+rules_version = '2';
+// Reglas de Firestore para Belu Bank. Pegar en Firebase → Firestore Database → Rules → Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Datos de cada cuenta: solo los ve y los cambia la persona que inició sesión con esa cuenta.
+    match /usuarios/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+      match /prestamos/{id} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // Estado de un cliente: cualquiera con el enlace (token secreto) puede leer ESE documento,
+    // pero nadie puede listar la colección. Solo la dueña puede crearlo, cambiarlo o borrarlo.
+    match /estados/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if request.auth != null && token.size() >= 20
+                    && request.resource.data.owner == request.auth.uid;
+      allow update: if request.auth != null && resource.data.owner == request.auth.uid
+                    && request.resource.data.owner == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.owner == request.auth.uid;
+    }
+
+    // Todo lo demás, cerrado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

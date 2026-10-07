@@ -154,7 +154,7 @@ table.edit input[type=date]{width:140px}
 </head>
 <body>
 <header><div class="top">
-  <h1>Belu <span>Bank</span></h1>
+  <h1>Belu <span>Bank</span></h1><span id="nubeInd" class="hint" style="font-size:12px;font-weight:600"></span>
   <nav id="nav">
     <button data-v="inicio" class="on">Cobros</button>
     <button data-v="prestamos">Préstamos</button>
@@ -262,6 +262,8 @@ function guardarLocal(){
 }
 function save(){
   guardarLocal(); render();
+  if (nubeActiva()){ clearTimeout(nube.timer); nube.timer = setTimeout(subirCambios, 600); }
+  else if (localStorage.getItem(KEY_NUBE)) try { localStorage.setItem(KEY_SUCIO, '1'); } catch(e){}
   if (S.drive?.auto && GOOGLE_CLIENT_ID){ clearTimeout(syncTimer); syncTimer = setTimeout(() => sincronizarDrive(false), 4000); }
 }
 
@@ -307,8 +309,9 @@ function bannerRespaldo(){
   let h = '';
   if (!persist) h += `<div class="banner">⚠️ Este navegador no permite guardar datos aquí. Usa “Respaldo → Exportar” antes de cerrar.</div>`;
   const u = S.ultimoRespaldo;
-  if (persist && (!u || daysBetween(u, hoy()) > 7)) h += `<div class="banner">💾 ${u ? 'Tu último respaldo fue hace '+daysBetween(u,hoy())+' días.' : 'Aún no tienes un respaldo.'} Los datos viven solo en este navegador. <button class="btn sm" onclick="exportarJSON()">Descargar respaldo</button></div>`;
+  if (persist && !nubeActiva() && (!u || daysBetween(u, hoy()) > 7)) h += `<div class="banner">💾 ${u ? 'Tu último respaldo fue hace '+daysBetween(u,hoy())+' días.' : 'Aún no tienes un respaldo.'} Los datos viven solo en este navegador. <button class="btn sm" onclick="exportarJSON()">Descargar respaldo</button></div>`;
   if (S.drive?.auto && GOOGLE_CLIENT_ID && !Drive.listo()) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">☁ Google Drive está desconectado; tus cambios no se están copiando. <button class="btn sm" onclick="sincronizarDrive(true)">Conectar y guardar</button></div>`;
+  if (localStorage.getItem(KEY_NUBE) && nube.sinSesion) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">☁ Tu sesión de la nube se cerró; los cambios no se están sincronizando. <button class="btn sm" onclick="entrarNube()">Entrar con Google</button></div>`;
   if (S.ejemplo) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">Estos préstamos son de ejemplo, para que veas cómo funciona. Cuando quieras, empieza vacío o restaura tu respaldo. <button class="btn sm" onclick="S={prestamos:[],ultimoRespaldo:S.ultimoRespaldo,ejemplo:false};save()">Empezar vacío</button> <button class="btn sm" onclick="document.getElementById('fileIn').click()">Restaurar respaldo</button></div>`;
   return h;
 }
@@ -582,7 +585,7 @@ function vGanancias(){
 /* ---------- Respaldo ---------- */
 function vRespaldo(){
   const d = S.drive || {};
-  app.innerHTML = `<h2>Respaldo de datos</h2>
+  app.innerHTML = seccionNube() + `<h2>Respaldo de datos</h2>
   <div class="card" style="padding:16px">
     <p style="margin-top:0">Tus datos se guardan <b>solo en este celular (o computadora)</b>; no se suben a internet por sí solos. Si borras los datos del navegador o cambias de equipo, se pierden, así que <b>descarga un respaldo cada semana</b> o guárdalo en Google Drive.</p>
     <p class="hint">Último respaldo: ${S.ultimoRespaldo ? fD(S.ultimoRespaldo) : 'nunca'}</p>
@@ -928,28 +931,61 @@ const b64u = {
   enc:s => { const b = new TextEncoder().encode(s); let t = ''; for (const x of b) t += String.fromCharCode(x); return btoa(t).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); },
   dec:s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0))),
 };
+function datosEstado(nombre){
+  const ps = prestamosDe(nombre), activos = ps.filter(x => pendientes(x).length), lista = activos.length ? activos : ps.slice(-1);
+  return {n:ps[0]?.cliente || nombre, p:lista.map(x => x.cuotas.map(c => [c.fecha, c.capital, c.interes, c.tipo === 'interes' ? 1 : 0, c.pagado ? (c.fechaPago || c.fecha) : 0]))};
+}
 function enlaceEstado(L){
-  const ps = prestamosDe(L.cliente).filter(x => x === L || pendientes(x).length);
-  const d = {n:L.cliente, g:hoy(), p:ps.map(x => x.cuotas.map(c => [c.fecha, c.capital, c.interes, c.tipo === 'interes' ? 1 : 0, c.pagado ? (c.fechaPago || c.fecha) : 0]))};
-  return location.origin + location.pathname + '#estado=' + b64u.enc(JSON.stringify(d));
+  return location.origin + location.pathname + '#estado=' + b64u.enc(JSON.stringify({...datosEstado(L.cliente), g:hoy()}));
+}
+/* Con la nube, cada cliente tiene un enlace fijo (#c=token) que siempre muestra su estado actual. */
+function tokenCliente(nombre){
+  S.clientes = S.clientes || {};
+  const k = nombre.trim().toLowerCase();
+  if (!S.clientes[k]){
+    let t = ''; for (const x of crypto.getRandomValues(new Uint8Array(18))) t += String.fromCharCode(x);
+    S.clientes[k] = {token:btoa(t).replace(/\+/g,'-').replace(/\//g,'_'), nombre};
+  }
+  return S.clientes[k].token;
 }
 function enviarEstado(lid){
-  const L = buscarL(lid);
-  const msg = `Hola ${L.cliente}, aquí puedes ver el estado de tu préstamo con Belu Bank (actualizado al ${fD(hoy())}):\n${enlaceEstado(L)}`;
+  const L = buscarL(lid), vivo = nubeActiva();
+  let link;
+  if (vivo){ link = location.origin + location.pathname + '#c=' + tokenCliente(L.cliente); guardarLocal(); subirCambios(); }
+  else link = enlaceEstado(L);
+  const msg = vivo ? `Hola ${L.cliente}, en este enlace puedes ver en cualquier momento el estado de tu préstamo con Belu Bank:\n${link}`
+    : `Hola ${L.cliente}, aquí puedes ver el estado de tu préstamo con Belu Bank (actualizado al ${fD(hoy())}):\n${link}`;
   let tel = (L.tel||'').replace(/\D/g,''); if (tel.length === 9) tel = '51'+tel;
   window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 function vistaEstado(){
   document.getElementById('nav').style.display = 'none';
-  document.title = 'Belu Bank · Estado de cuenta';
   let d;
   try { d = JSON.parse(b64u.dec(location.hash.slice('#estado='.length))); if (!Array.isArray(d.p)) throw 0; }
   catch(e){ app.innerHTML = '<div class="card empty" style="margin-top:16px">Este enlace no es válido. Pide uno nuevo.</div>'; return; }
+  pintarEstado(d, false);
+}
+async function vistaCliente(token){
+  document.getElementById('nav').style.display = 'none';
+  document.title = 'Belu Bank · Estado de cuenta';
+  const aviso = t => app.innerHTML = `<div class="card empty" style="margin-top:16px">${t}</div>`;
+  aviso('Cargando tu estado de cuenta…');
+  try {
+    const {db, m} = await cargarFirebase(false);
+    let llego = false;
+    setTimeout(() => { if (!llego) aviso('No se pudo cargar tu estado de cuenta. Revisa tu conexión e inténtalo de nuevo.'); }, 15000);
+    m.onSnapshot(m.doc(db, 'estados', token),
+      doc => { llego = true; doc.exists() ? pintarEstado(JSON.parse(doc.data().d), true) : aviso('Este enlace no es válido o ya no está activo. Pide uno nuevo.'); },
+      () => aviso('No se pudo cargar tu estado de cuenta. Revisa tu conexión e inténtalo de nuevo.'));
+  } catch(e){ aviso('No se pudo cargar tu estado de cuenta. Revisa tu conexión e inténtalo de nuevo.'); }
+}
+function pintarEstado(d, vivo){
+  document.title = 'Belu Bank · Estado de cuenta';
   const t = hoy(), MESL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   const largo = s => { const p = P(s); return `${p.d} de ${MESL[p.m-1]} de ${p.y}`; };
   const ps = d.p.map(cs => cs.map(([fecha, capital, interes, ti, fp]) => ({fecha, capital, interes, tipo:ti ? 'interes' : 'normal', pagado:!!fp, fechaPago:fp || null})));
   app.innerHTML = `<h2 style="font-size:20px;margin-top:8px">Hola, ${esc(d.n)} 👋</h2>
-  <p class="hint">Este es el estado de tu cuenta al <b>${largo(d.g)}</b>. Si pagaste después de esa fecha, pide un enlace actualizado.</p>
+  <p class="hint">${vivo ? `Estado de tu cuenta, actualizado al <b>${largo(d.g)}</b>. Esta página se actualiza sola cuando se registra un pago.` : `Este es el estado de tu cuenta al <b>${largo(d.g)}</b>. Si pagaste después de esa fecha, pide un enlace actualizado.`}</p>
   ${ps.map((cs, i) => {
     const pend = cs.filter(c => !c.pagado), sig = pend[0], venc = pend.filter(c => c.fecha < t);
     const total = r2(cs.reduce((s,c) => s + c.capital + c.interes, 0)), pagado = r2(cs.filter(c => c.pagado).reduce((s,c) => s + c.capital + c.interes, 0));
@@ -967,6 +1003,164 @@ function vistaEstado(){
       </tbody></table></div></div>`;
   }).join('')}
   <div class="foot">Belu Bank · Esta página muestra solo tu información.</div>`;
+}
+
+/* ================= Nube (Firebase) ================= */
+/* Con sesión de Google, cada préstamo se guarda en Firestore (usuarios/{uid}/prestamos/{id}) y se
+   sincroniza entre celular y computadora. El estado de cada cliente con enlace se publica en
+   estados/{token}, que solo puede leer quien conoce el token. Reglas de acceso: firestore.rules. */
+const FIREBASE = {
+  apiKey:'AIzaSyDx6X5ZvsP456XjgTg5BRrt09-wZkoSbBc', authDomain:'belu-bank.firebaseapp.com', projectId:'belu-bank',
+  storageBucket:'belu-bank.firebasestorage.app', messagingSenderId:'141238546881', appId:'1:141238546881:web:0b797ca0a73debb23c7f40',
+};
+const FB_URL = 'https://www.gstatic.com/firebasejs/12.3.0/';
+const KEY_NUBE = 'belubank.nube';                // uid de la cuenta conectada en este equipo
+const KEY_SUCIO = 'belubank.nube.pendiente';     // hubo cambios sin conexión con la nube
+const nube = {estado:'off', uid:null, email:null, fb:null, ultimos:new Map(), metaUlt:null, estadosUlt:new Map(), subs:[], timer:null, escuchando:false, sinSesion:false};
+const nubeActiva = () => nube.estado === 'ok' || nube.estado === 'subiendo';
+
+async function cargarFirebase(conSesion){
+  if (nube.fb) return nube.fb;
+  const [ap, m, a] = await Promise.all(['firebase-app.js', 'firebase-firestore.js', ...(conSesion ? ['firebase-auth.js'] : [])].map(f => import(FB_URL + f)));
+  const app = ap.initializeApp(FIREBASE);
+  const db = conSesion ? m.initializeFirestore(app, {localCache:m.persistentLocalCache({tabManager:m.persistentMultipleTabManager()})}) : m.getFirestore(app);
+  return nube.fb = {app, db, m, a, auth:a ? a.getAuth(app) : null};
+}
+function pintarNube(){
+  const el = document.getElementById('nubeInd'); if (!el) return;
+  const sinRed = !navigator.onLine && nubeActiva();
+  el.textContent = sinRed ? '☁ sin internet · se guardará al volver' : ({ok:'☁ sincronizado', subiendo:'☁ guardando…', conectando:'☁ conectando…', error:'☁ error'}[nube.estado] || '');
+  el.style.color = nube.estado === 'error' ? 'var(--red)' : nube.estado === 'ok' && !sinRed ? 'var(--brand)' : '';
+}
+function ponerEstadoNube(e){ nube.estado = e; pintarNube(); if (vista === 'respaldo' && !dlg.open) render(); }
+function errorNube(e){
+  console.error(e);
+  const c = e?.code || '';
+  if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request'){ ponerEstadoNube(nube.uid ? 'ok' : 'off'); return; }
+  nube.error = c === 'auth/unauthorized-domain' ? 'Este sitio no está autorizado en Firebase (Authentication → Settings → Authorized domains).'
+    : c === 'auth/operation-not-allowed' || c === 'auth/configuration-not-found' ? 'Falta activar el inicio de sesión con Google en Firebase.'
+    : c === 'auth/popup-blocked' ? 'El navegador bloqueó la ventana de Google. Permite ventanas emergentes e inténtalo de nuevo.'
+    : c === 'permission-denied' ? 'Firestore rechazó el acceso: revisa que las reglas estén publicadas.'
+    : c === 'failed-precondition' || c === 'not-found' ? 'Falta crear la base de datos Firestore en Firebase.'
+    : 'No se pudo conectar con la nube' + (c ? ` (${c})` : '') + '.';
+  ponerEstadoNube('error'); toast(nube.error);
+}
+function escucharSesion(){
+  if (nube.escuchando) return; nube.escuchando = true;
+  nube.fb.a.onAuthStateChanged(nube.fb.auth, u => {
+    nube.sinSesion = !u;
+    if (u) conectarDatos(u).catch(errorNube);
+    else { cortarNube(); ponerEstadoNube('off'); if (vista !== 'nuevo' && !dlg.open) render(); }
+  });
+}
+async function iniciarNube(){
+  ponerEstadoNube('conectando');
+  try { await cargarFirebase(true); escucharSesion(); }
+  catch(e){ ponerEstadoNube('off'); console.warn('Nube no disponible', e); }
+}
+async function entrarNube(){
+  try {
+    ponerEstadoNube('conectando');
+    const fb = await cargarFirebase(true); escucharSesion();
+    await fb.a.signInWithPopup(fb.auth, new fb.a.GoogleAuthProvider());
+  } catch(e){ errorNube(e); }
+}
+async function salirNube(){
+  if (!confirm('¿Cerrar la sesión de la nube en este equipo? Tus datos quedan guardados aquí y en la nube, pero los cambios ya no se sincronizarán.')) return;
+  localStorage.removeItem(KEY_NUBE); localStorage.removeItem(KEY_SUCIO);
+  cortarNube(); await nube.fb.a.signOut(nube.fb.auth); nube.sinSesion = false; ponerEstadoNube('off'); render();
+}
+function cortarNube(){ nube.subs.forEach(f => f()); nube.subs = []; nube.uid = null; nube.email = null; nube.ultimos = new Map(); nube.metaUlt = null; nube.estadosUlt = new Map(); }
+
+const metaDe = () => JSON.stringify({ultimoRespaldo:S.ultimoRespaldo || null, drive:S.drive || null, clientes:S.clientes || {}});
+const porCreacion = (a, b) => (a.creado || '').localeCompare(b.creado || '') || a.id.localeCompare(b.id);
+async function conectarDatos(u){
+  if (nube.uid === u.uid && nube.subs.length) return;
+  const {db, m} = nube.fb;
+  nube.uid = u.uid; nube.email = u.email; ponerEstadoNube('conectando');
+  const col = m.collection(db, 'usuarios', u.uid, 'prestamos'), metaRef = m.doc(db, 'usuarios', u.uid);
+  const [snap, metaSnap] = await Promise.all([m.getDocs(col), m.getDoc(metaRef)]);
+  const remotos = snap.docs.map(d => JSON.parse(d.data().json));
+  nube.ultimos = new Map(snap.docs.map(d => [d.id, d.data().json]));
+  nube.metaUlt = metaSnap.exists() ? metaSnap.data().json : null;
+  const mismaCuenta = localStorage.getItem(KEY_NUBE) === u.uid, localReal = !S.ejemplo && S.prestamos.length > 0;
+  let lista, usarMeta = true;
+  if (mismaCuenta && localStorage.getItem(KEY_SUCIO)){
+    // Hubo cambios en este equipo sin conexión con la nube: se suben encima de lo que hay allá.
+    const porId = new Map(remotos.map(L => [L.id, L])); S.prestamos.forEach(L => porId.set(L.id, L)); lista = [...porId.values()]; usarMeta = false;
+  } else if (mismaCuenta || !localReal) lista = remotos;
+  else if (!remotos.length){ lista = S.prestamos; usarMeta = false; }
+  else if (confirm(`Tu cuenta en la nube ya tiene ${remotos.length} préstamo(s) y este equipo tiene ${S.prestamos.length}.\n\nAceptar: usar los de la nube (se reemplazan los de este equipo).\nCancelar: subir los de este equipo (se reemplazan los de la nube).`)) lista = remotos;
+  else { lista = S.prestamos; usarMeta = false; }
+  S.prestamos = lista.slice().sort(porCreacion); S.ejemplo = false;
+  if (usarMeta && nube.metaUlt) Object.assign(S, JSON.parse(nube.metaUlt));
+  localStorage.setItem(KEY_NUBE, u.uid); localStorage.removeItem(KEY_SUCIO);
+  guardarLocal(); ponerEstadoNube('ok');
+  subirCambios();            // primero se escribe lo local (queda en la caché al instante)…
+  escucharCambios(col, metaRef);   // …y después se escuchan los cambios de otros equipos
+  if (vista !== 'nuevo' && !dlg.open) render();
+}
+function escucharCambios(col, metaRef){
+  const {m} = nube.fb;
+  let primera = true;
+  nube.subs = [
+    m.onSnapshot(col, snap => {
+      if (primera){ primera = false; return; }   // ya se cargó con getDocs
+      let cambio = false;
+      for (const ch of snap.docChanges()){
+        const id = ch.doc.id, i = S.prestamos.findIndex(L => L.id === id);
+        if (ch.type === 'removed'){ nube.ultimos.delete(id); if (i >= 0){ S.prestamos.splice(i, 1); cambio = true; } continue; }
+        const j = ch.doc.data().json; nube.ultimos.set(id, j);
+        if (i < 0){ S.prestamos.push(JSON.parse(j)); cambio = true; }
+        else if (JSON.stringify(S.prestamos[i]) !== j){ S.prestamos[i] = JSON.parse(j); cambio = true; }
+      }
+      if (cambio){ S.prestamos.sort(porCreacion); guardarLocal(); if (vista !== 'nuevo' && !dlg.open) render(); }
+    }, errorNube),
+    m.onSnapshot(metaRef, doc => {
+      if (!doc.exists()) return;
+      const j = doc.data().json; nube.metaUlt = j;
+      if (j !== metaDe()){ Object.assign(S, JSON.parse(j)); guardarLocal(); }
+    }, errorNube),
+  ];
+}
+/* Sube solo lo que cambió: préstamos nuevos o editados, borrados, datos generales y estados de clientes. */
+function subirCambios(){
+  if (!nubeActiva()) return Promise.resolve();
+  const {db, m} = nube.fb, uid = nube.uid, ops = [];
+  const actuales = new Map(S.prestamos.map(L => [L.id, JSON.stringify(L)]));
+  for (const [id, j] of actuales) if (nube.ultimos.get(id) !== j) ops.push(b => b.set(m.doc(db, 'usuarios', uid, 'prestamos', id), {json:j, actualizado:m.serverTimestamp()}));
+  for (const id of nube.ultimos.keys()) if (!actuales.has(id)) ops.push(b => b.delete(m.doc(db, 'usuarios', uid, 'prestamos', id)));
+  const meta = metaDe();
+  if (meta !== nube.metaUlt) ops.push(b => b.set(m.doc(db, 'usuarios', uid), {json:meta, email:nube.email, actualizado:m.serverTimestamp()}));
+  for (const c of Object.values(S.clientes || {})){
+    const base = JSON.stringify(datosEstado(c.nombre));
+    if (nube.estadosUlt.get(c.token) === base) continue;
+    nube.estadosUlt.set(c.token, base);
+    const d = JSON.stringify({...JSON.parse(base), g:hoy()});
+    ops.push(b => b.set(m.doc(db, 'estados', c.token), {owner:uid, d, actualizado:m.serverTimestamp()}));
+  }
+  if (!ops.length) return Promise.resolve();
+  nube.ultimos = actuales; nube.metaUlt = meta;
+  ponerEstadoNube('subiendo');
+  const lotes = [];
+  for (let i = 0; i < ops.length; i += 400){ const b = m.writeBatch(db); ops.slice(i, i + 400).forEach(f => f(b)); lotes.push(b.commit()); }
+  return Promise.all(lotes).then(() => { if (nube.estado === 'subiendo') ponerEstadoNube('ok'); }).catch(errorNube);
+}
+function seccionNube(){
+  const txt = {ok:'sincronizado ✓', subiendo:'guardando…', conectando:'conectando…', error:'con error'}[nube.estado] || '';
+  if (!nube.uid) return `<h2>Nube <small>· celular y computadora sincronizados</small></h2>
+  <div class="card" style="padding:16px">
+    <p style="margin-top:0">Entra con tu cuenta de Google para guardar todo en la nube: tus préstamos se sincronizan entre el celular y la computadora, no se pierden si cambias de celular y cada cliente puede ver su estado siempre actualizado con su enlace.</p>
+    ${nube.estado === 'error' ? `<p class="hint" style="color:var(--red)">${esc(nube.error)}</p>` : ''}
+    <button class="btn pri" onclick="entrarNube()" ${nube.estado === 'conectando' ? 'disabled' : ''}>${nube.estado === 'conectando' ? 'Conectando…' : 'Entrar con Google'}</button>
+  </div>`;
+  return `<h2>Nube</h2>
+  <div class="card" style="padding:16px">
+    <p style="margin-top:0">Conectada como <b>${esc(nube.email || '')}</b> · ${txt}</p>
+    ${nube.estado === 'error' ? `<p class="hint" style="color:var(--red)">${esc(nube.error)}</p>` : ''}
+    <p class="hint">Cada cambio se guarda solo en la nube y aparece en tus otros equipos. Sin internet, se guarda aquí y se sube al volver la conexión. Los archivos adjuntos quedan en el equipo donde los agregaste (cópialos a Google Drive).</p>
+    <button class="btn" onclick="salirNube()">Cerrar sesión</button>
+  </div>`;
 }
 
 /* ================= Google Drive ================= */
@@ -1151,8 +1345,12 @@ function toast(msg, snap){
 }
 
 if (location.hash.startsWith('#estado=')) vistaEstado();
+else if (location.hash.startsWith('#c=')) vistaCliente(location.hash.slice(3));
 else {
   render();
+  if (localStorage.getItem(KEY_NUBE)) iniciarNube();
+  addEventListener('online', () => { pintarNube(); if (localStorage.getItem(KEY_NUBE) && !nube.fb) iniciarNube(); });
+  addEventListener('offline', pintarNube);
   if (persist) try { if (!localStorage.getItem(KEY)) localStorage.setItem(KEY, JSON.stringify(S)); else limpiarAdjuntos(); } catch(e){}
 }
 window.addEventListener('hashchange', () => location.reload());

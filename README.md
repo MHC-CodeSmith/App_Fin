@@ -7,7 +7,8 @@ App web para controlar préstamos y cobros. Moneda: soles (S/).
 - Atrasos, pagos de "solo interés", refinanciamientos y **Corregir** para arreglar errores.
 - **% cumplido** de cada cliente: cuotas pagadas completas y a tiempo sobre las que ya vencieron.
 - **Ganancias**: cuánto se gana por mes (cobrado y por cobrar), promedio mensual y total del año.
-- **Enviar estado**: enlace por WhatsApp para que el cliente vea solo su préstamo.
+- **Enviar estado**: enlace por WhatsApp para que el cliente vea solo su préstamo (en vivo si la nube está activa).
+- **Nube (Firebase)**: con sesión de Google, todo se sincroniza entre celular y computadora.
 - Recordatorios por WhatsApp, Excel y respaldo en Google Drive.
 
 Funciona en el celular como app instalada y también sin internet. Con un botón descarga todo en Excel (`.xlsx`) para verlo, imprimirlo o guardarlo en Excel o Google Sheets.
@@ -50,13 +51,29 @@ Cada equipo guarda su propia copia; no se sincronizan solos.
 
 El Excel es para ver y guardar. Para restaurar la app se usa siempre el respaldo `.json`.
 
+## Nube (Firebase)
+
+Con **Respaldo → Nube → Entrar con Google**, los préstamos se guardan en Firestore (proyecto `belu-bank`) y se sincronizan entre todos los equipos donde se entre con la misma cuenta. Sin internet, la app sigue funcionando y sube los cambios al volver la conexión.
+
+- Datos: `usuarios/{uid}` (datos generales) y `usuarios/{uid}/prestamos/{id}` (un documento por préstamo).
+- Estado de cada cliente: `estados/{token}`, con un token aleatorio de 24 caracteres.
+- Reglas de seguridad: [`firestore.rules`](firestore.rules). Cada cuenta solo ve sus propios datos. Un estado de cliente solo se puede leer conociendo su token; la colección no se puede listar.
+- Los archivos adjuntos no van a Firestore: quedan en el equipo y se copian a Google Drive.
+
+Configuración en la consola de Firebase (una vez):
+
+1. **Security → Authentication → Get started → Sign-in method → Google → Enable → Save**.
+2. **Authentication → Settings → Authorized domains → Add domain**: `mhc-codesmith.github.io`.
+3. **Databases & Storage → Firestore Database → Create database** (Standard, `southamerica-west1` o `southamerica-east1`, *production mode*).
+4. **Firestore Database → Rules**: pegar el contenido de `firestore.rules` y **Publish**.
+
 ## Enlace de estado para el cliente
 
 En cada préstamo, **📤 Enviar estado** abre WhatsApp con un enlace como `https://mhc-codesmith.github.io/App_Fin/#estado=…`.
 El cliente ve solo su préstamo: lo pagado, lo que falta, la próxima cuota y la lista de cuotas. No ve el resto de la app.
 
-- Los datos van **dentro del enlace** (después de `#`, que el navegador no envía a ningún servidor). No hay base de datos en internet.
-- Es una **foto del día en que se envía**: después de cada pago hay que enviar un enlace nuevo.
+- **Con la nube activa**, el enlace es fijo (`#c=<token>`) y muestra siempre el estado actual: se actualiza solo cuando se registra un pago.
+- **Sin nube**, los datos van dentro del enlace (`#estado=…`, después de `#`, que el navegador no envía a ningún servidor) y es una foto del día en que se envía: después de cada pago hay que enviar un enlace nuevo.
 - Quien tenga el enlace puede verlo, igual que una captura enviada por WhatsApp.
 
 ## Google Drive
@@ -90,6 +107,7 @@ El ID de cliente no es secreto (Google lo diseña para ir en el código de la p�
 |---|---|
 | `index.html` | La app completa (HTML + CSS + JS, sin dependencias; el Excel se genera ahí mismo) |
 | `manifest.webmanifest`, `icons/` | Para instalarla como app en el celular |
-| `sw.js` | Guarda la app para que abra sin internet |
+| `sw.js` | Guarda la app (y las librerías de Firebase) para que abra sin internet |
+| `firestore.rules` | Reglas de seguridad de Firestore (se pegan en la consola de Firebase) |
 
 Los adjuntos se guardan en el navegador (IndexedDB), no en el repositorio.
