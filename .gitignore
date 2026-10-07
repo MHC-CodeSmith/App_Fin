@@ -2,6 +2,7 @@
 belu-bank-respaldo-*.json
 financiera-respaldo-*.json
 *.json
+!firebase.json
 !manifest.webmanifest
 .claude/
 *.zip

@@ -60,12 +60,16 @@ Con **Respaldo → Nube → Entrar con Google**, los préstamos se guardan en Fi
 - Reglas de seguridad: [`firestore.rules`](firestore.rules). Cada cuenta solo ve sus propios datos. Un estado de cliente solo se puede leer conociendo su token; la colección no se puede listar.
 - Los archivos adjuntos no van a Firestore: quedan en el equipo y se copian a Google Drive.
 
-Configuración en la consola de Firebase (una vez):
+Configuración (ya hecha en el proyecto `belu-bank`):
 
-1. **Security → Authentication → Get started → Sign-in method → Google → Enable → Save**.
-2. **Authentication → Settings → Authorized domains → Add domain**: `mhc-codesmith.github.io`.
-3. **Databases & Storage → Firestore Database → Create database** (Standard, `southamerica-west1` o `southamerica-east1`, *production mode*).
-4. **Firestore Database → Rules**: pegar el contenido de `firestore.rules` y **Publish**.
+- **Authentication**: inicio de sesión con Google activado; dominio autorizado `mhc-codesmith.github.io`.
+- **Firestore**: base de datos `(default)` en `southamerica-west1` (Santiago).
+- **Reglas**: [`firestore.rules`](firestore.rules). Para publicar cambios en las reglas:
+
+  ```bash
+  npx firebase-tools@latest login
+  npx firebase-tools@latest deploy --only firestore:rules
+  ```
 
 ## Enlace de estado para el cliente
 
