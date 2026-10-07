@@ -4,3 +4,4 @@ financiera-respaldo-*.json
 *.json
 !manifest.webmanifest
 .claude/
+*.zip
