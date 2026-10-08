@@ -6,7 +6,9 @@ App web para controlar préstamos y cobros. Moneda: soles (S/).
 - Ficha del cliente: apodo, teléfono, cuánto gana al mes (y qué % de su ingreso es la cuota), nota y archivos adjuntos (contratos, fotos, videos).
 - Atrasos, pagos de "solo interés", refinanciamientos y **Corregir** para arreglar errores.
 - **% cumplido** de cada cliente: cuotas pagadas completas y a tiempo sobre las que ya vencieron.
-- **Ganancias**: cuánto se gana por mes (cobrado y por cobrar), promedio mensual y total del año.
+- **Meses**: cada mes como en la nota (cliente, %, capital − interés, fecha y si pagó), con lo cobrado, lo que falta, la ganancia del mes y un gráfico para saltar entre meses.
+- **Clientes**: buscador de clientes con lo prestado, la ganancia, lo que deben y su % cumplido; al tocar uno se ve todo su historial de préstamos.
+- **Mora**: S/ 5 por día de atraso (configurable), se suma sola al registrar el pago; cada cuota tiene un botón **Exonerar** para perdonarla.
 - **Enviar estado**: enlace por WhatsApp para que el cliente vea solo su préstamo (en vivo si la nube está activa).
 - **Nube (Firebase)**: con sesión de Google, todo se sincroniza entre celular y computadora.
 - Recordatorios por WhatsApp, Excel y respaldo en Google Drive.
@@ -100,6 +102,7 @@ El ID de cliente no es secreto (Google lo diseña para ir en el código de la p�
 - **Redondeo**: el capital por cuota se redondea hacia arriba y el interés hacia abajo; la última cuota ajusta la diferencia (`2000*20%/3mes → 667+133=800`, última `666+134=800`).
 - **Solo interés**: el cliente paga solo el interés del mes; ese pago queda registrado y toda la deuda pendiente se corre un mes (`3/3 +1 → 4/4`).
 - **Refinanciar**: capital pendiente + interés no pagado − abono, repartido en nuevos meses con un nuevo interés (por ejemplo, simbólico por mes).
+- **Mora**: `días de atraso × mora por día` (por defecto 5). Al registrar el pago se suma al interés de esa cuota y queda como ganancia. *Exonerar* la quita antes o después del pago.
 - **% cumplido**: de las cuotas ya vencidas (o pagadas), cuántas se pagaron completas en o antes de su fecha límite. Un mes de *solo interés* cuenta como no cumplido.
 - **Ganancia del mes**: interés de las cuotas cobradas ese mes (por fecha de pago). *Por cobrar*: interés de las cuotas que vencen ese mes y aún no se pagan.
 

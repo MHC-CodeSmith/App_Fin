@@ -137,9 +137,51 @@ table.edit input[type=date]{width:140px}
 .nextbox{background:var(--bg);border-radius:10px;padding:12px;margin:12px 0;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
 .nextbox b{font-size:20px;font-variant-numeric:tabular-nums}
 .foot{color:var(--muted);font-size:12px;text-align:center;margin:28px 0 12px}
+nav button{display:inline-flex;align-items:center;gap:6px}
+nav .ic{font-size:15px;line-height:1}
+.av{--h:150;width:38px;height:38px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:none;
+  background:hsl(var(--h) 60% 90%);color:hsl(var(--h) 45% 28%)}
+.av.lg{width:56px;height:56px;font-size:20px}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .av{background:hsl(var(--h) 30% 24%);color:hsl(var(--h) 65% 82%)} }
+:root[data-theme="dark"] .av{background:hsl(var(--h) 30% 24%);color:hsl(var(--h) 65% 82%)}
+.list .row > .av{align-self:flex-start;margin-top:2px}
+.link{cursor:pointer}
+.link:hover{text-decoration:underline}
+.clientes{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.cli{padding:14px;cursor:pointer;min-width:0;transition:border-color .15s,transform .15s}
+.cli:hover{border-color:var(--brand)}
+.cli:active{transform:scale(.99)}
+.cli-hd{display:flex;gap:12px;align-items:center}
+.cli-hd .chips{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.cli-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;background:var(--bg);border-radius:10px;padding:10px 12px}
+.cli-nums span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.cli-nums b{font-variant-numeric:tabular-nums;font-size:15px}
+.mes-nav{display:flex;align-items:center;gap:8px;margin:4px 0 14px}
+.mes-nav h2{margin:0;font-size:21px;flex:1;text-align:center;text-transform:capitalize}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px;margin:0 0 10px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.mrow{border-left:4px solid var(--line)}
+.mrow.st-ok{border-left-color:var(--brand)}
+.mrow.st-int{border-left-color:var(--amber)}
+.mrow.st-late{border-left-color:var(--red)}
+.nota-l{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;margin-top:3px}
+.bar.big{height:10px;margin:14px 0 4px}
+.bcol{cursor:pointer}
+.bcol.sel .blab{color:var(--brand);font-weight:700}
+.bcol.sel .bstack{outline:2px solid var(--brand);outline-offset:2px}
+.tl{padding:14px;margin-bottom:12px}
+.tl .formula{margin:8px 0}
+details.card > summary{padding:12px 14px;cursor:pointer;font-weight:600;font-size:14px}
 @media (max-width:600px){
-  nav{margin-left:0;width:100%}
-  nav button{flex:1;padding:8px 4px;font-size:13px}
+  body{padding-bottom:calc(68px + env(safe-area-inset-bottom))}
+  nav{position:fixed;left:0;right:0;bottom:0;margin:0;z-index:30;background:var(--card);border-top:1px solid var(--line);
+    display:flex;flex-wrap:nowrap;gap:0;padding:4px 2px calc(4px + env(safe-area-inset-bottom))}
+  nav button{flex:1;flex-direction:column;gap:2px;padding:6px 0;font-size:10.5px;min-width:0}
+  nav .ic{font-size:19px}
+  #toast{bottom:calc(80px + env(safe-area-inset-bottom));max-width:calc(100vw - 24px)}
+  .clientes{grid-template-columns:1fr}
+  .mes-nav h2{font-size:18px}
   .amt{text-align:left;min-width:0}
   .loans{grid-template-columns:1fr}
   table.edit input[type=number]{width:62px}
@@ -156,11 +198,12 @@ table.edit input[type=date]{width:140px}
 <header><div class="top">
   <h1>Belu <span>Bank</span></h1><span id="nubeInd" class="hint" style="font-size:12px;font-weight:600"></span>
   <nav id="nav">
-    <button data-v="inicio" class="on">Cobros</button>
-    <button data-v="prestamos">Préstamos</button>
-    <button data-v="nuevo">+ Nuevo</button>
-    <button data-v="ganancias">Ganancias</button>
-    <button data-v="respaldo">Respaldo</button>
+    <button data-v="inicio" class="on"><span class="ic">💰</span><span>Cobros</span></button>
+    <button data-v="clientes"><span class="ic">👥</span><span>Clientes</span></button>
+    <button data-v="meses"><span class="ic">📅</span><span>Meses</span></button>
+    <button data-v="prestamos"><span class="ic">📄</span><span>Préstamos</span></button>
+    <button data-v="nuevo"><span class="ic">➕</span><span>Nuevo</span></button>
+    <button data-v="respaldo"><span class="ic">☁</span><span>Respaldo</span></button>
   </nav>
 </div></header>
 <main id="app"></main>
@@ -280,6 +323,23 @@ function estadoPrestamo(L){
 }
 function mesKey(s){ return s.slice(0,7); }
 
+/* Mora: S/ 5 (configurable) por cada día de atraso de una cuota. Se suma sola al registrar el pago
+   (queda dentro del interés de esa cuota, como ganancia) y se puede exonerar con un botón. */
+const moraDia = () => S.moraDia ?? 5;
+function moraDe(c, alDia = hoy()){
+  if (c.pagado || c.moraExonerada || c.tipo !== 'normal') return 0;
+  const d = daysBetween(c.fecha, alDia);
+  return d > 0 ? r2(d * moraDia()) : 0;
+}
+const totalHoy = c => r2(c.capital + c.interes + moraDe(c));
+function chipMora(L, c){
+  if (c.pagado) return c.mora ? `<span class="chip amber">incl. mora ${num(c.mora)}</span> <button class="btn sm" onclick="quitarMora('${L.id}','${c.id}')">Quitar mora</button>` : '';
+  if (c.tipo !== 'normal' || c.fecha >= hoy() || !moraDia()) return '';
+  if (c.moraExonerada) return `<span class="chip gray">Mora exonerada</span> <button class="btn sm" onclick="exonerar('${L.id}','${c.id}')">Cobrar mora</button>`;
+  const d = daysBetween(c.fecha, hoy());
+  return `<span class="chip red">Mora ${money(moraDe(c))} (${d} día${d > 1 ? 's' : ''})</span> <button class="btn sm" onclick="exonerar('${L.id}','${c.id}')">Exonerar</button>`;
+}
+
 /* % de cumplimiento: de las cuotas que ya vencieron (o ya se pagaron), cuántas se pagaron
    completas y a tiempo. Un mes de "solo interés" cuenta como no cumplido. */
 function cumplimiento(cuotas){
@@ -298,11 +358,11 @@ const cuotaTipica = L => { const c = L.cuotas.find(c => c.tipo === 'normal'); re
 /* ================= UI ================= */
 let vista = 'inicio', filtro = '', mesHist = hoy().slice(0,7), abiertos = new Set();
 const app = document.getElementById('app');
-document.getElementById('nav').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.v === 'nuevo' && borrador.editId) borrador = nuevoBorrador(); ir(b.dataset.v); };
+document.getElementById('nav').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.v === 'nuevo' && borrador.editId) borrador = nuevoBorrador(); if (b.dataset.v === 'clientes' && vista === 'clientes') clienteSel = null; ir(b.dataset.v); };
 function ir(v){ vista = v; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); render(); window.scrollTo(0,0); }
 
 function render(){
-  ({inicio:vInicio, prestamos:vPrestamos, nuevo:vNuevo, ganancias:vGanancias, respaldo:vRespaldo})[vista]();
+  ({inicio:vInicio, clientes:vClientes, meses:vMeses, ganancias:vMeses, prestamos:vPrestamos, nuevo:vNuevo, respaldo:vRespaldo})[vista]();
 }
 
 function bannerRespaldo(){
@@ -321,10 +381,11 @@ function bannerRespaldo(){
 function filaCobro(L, c){
   const t = hoy(), atras = c.fecha < t ? daysBetween(c.fecha, t) : 0;
   const ext = extrasInteres(L);
-  return `<div class="row">
-    <div class="who"><b>${esc(L.cliente)}</b>${L.apodo ? ` <span class="hint">“${esc(L.apodo)}”</span>` : ''} <span class="chip gray">${posicion(L,c)}${ext?` · +${ext} solo int.`:''}</span>
+  return `<div class="row">${avatar(L.cliente)}
+    <div class="who"><b class="link" onclick="irCliente('${L.id}')">${esc(L.cliente)}</b>${L.apodo ? ` <span class="hint">“${esc(L.apodo)}”</span>` : ''} <span class="chip gray">${posicion(L,c)}${ext?` · +${ext} solo int.`:''}</span>
       <div class="meta">Vence ${fD(c.fecha)} ${atras ? `<span class="chip red">${atras} día${atras>1?'s':''} de atraso</span>` : c.fecha===t ? '<span class="chip amber">hoy</span>' : `· faltan ${daysBetween(t,c.fecha)} días`}</div></div>
-    <div class="amt"><b>${money(c.capital+c.interes)}</b><div class="meta">${num(c.capital)} cap + ${num(c.interes)} int</div></div>
+    <div class="amt"><b>${money(totalHoy(c))}</b><div class="meta">${num(c.capital)} cap + ${num(c.interes)} int${moraDe(c) ? ` + ${num(moraDe(c))} mora` : ''}</div></div>
+    ${chipMora(L, c) ? `<div class="acts" style="flex-basis:100%;align-items:center">${chipMora(L, c)}</div>` : ''}
     <div class="acts">
       <button class="btn pri" onclick="pagar('${L.id}','${c.id}')">✓ Pagó</button>
       <button class="btn warn" onclick="dlgSoloInteres('${L.id}','${c.id}')">Solo interés</button>
@@ -348,7 +409,7 @@ function vInicio(){
   const activos = S.prestamos.filter(L => pendientes(L).length).length;
   const nombreMes = m => { const p = P(m+'-01'); return MESES[p.m-1]; };
 
-  const grupo = (titulo, arr, cls) => arr.length ? `<div class="grp ${cls||''}">${titulo} · ${money(arr.reduce((s,x)=>s+x.c.capital+x.c.interes,0))}</div><div class="card list">${arr.map(x=>filaCobro(x.L,x.c)).join('')}</div>` : '';
+  const grupo = (titulo, arr, cls) => arr.length ? `<div class="grp ${cls||''}">${titulo} · ${money(arr.reduce((s,x)=>s+totalHoy(x.c),0))}</div><div class="card list">${arr.map(x=>filaCobro(x.L,x.c)).join('')}</div>` : '';
   app.innerHTML = bannerRespaldo() + `
   <div class="kpis">
     <div class="kpi"><div class="l">Capital en la calle</div><div class="v">${money(calle)}</div><div class="s">${activos} préstamo${activos!==1?'s':''} activo${activos!==1?'s':''} · +${money(porInt)} de interés por cobrar</div></div>
@@ -381,8 +442,8 @@ function tarjeta(L){
   const todos = prestamosDe(L.cliente), cpTotal = todos.length > 1 ? cumplimiento(todos.flatMap(x => x.cuotas)) : null;
   const pctIng = L.ingreso ? Math.round(cuotaTipica(L) / L.ingreso * 100) : null;
   return `<div class="card loan">
-    <div class="hd"><div><b>${esc(L.cliente)}</b>${L.apodo ? ` <span class="hint">“${esc(L.apodo)}”</span>` : ''} ${L.modo==='pct' ? `<span class="hint">(${num(L.valor)}%)</span>` : ''}
-      <div class="hint">${sig ? `Cuota ${posicion(L,sig)} · vence ${fD(sig.fecha)}` : 'Préstamo terminado'} · total ${L.cuotas.length}/${L.cuotas.length}${ext ? ` (${nNorm} + ${ext} solo interés)` : ''}</div></div>
+    <div class="hd"><div style="display:flex;gap:10px;align-items:flex-start;min-width:0">${avatar(L.cliente)}<div style="min-width:0"><b class="link" onclick="irCliente('${L.id}')">${esc(L.cliente)}</b>${L.apodo ? ` <span class="hint">“${esc(L.apodo)}”</span>` : ''} ${L.modo==='pct' ? `<span class="hint">(${num(L.valor)}%)</span>` : ''}
+      <div class="hint">${sig ? `Cuota ${posicion(L,sig)} · vence ${fD(sig.fecha)}` : 'Préstamo terminado'} · total ${L.cuotas.length}/${L.cuotas.length}${ext ? ` (${nNorm} + ${ext} solo interés)` : ''}</div></div></div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="chip ${e.cls}">${e.t}</span>${chipCumpl(cumplimiento(L.cuotas))}</div></div>
     <div class="formula">${esc(L.formula).replace(/\n/g,'<br>')}${sig ? ` (${fD(sig.fecha)})` : ''}</div>
     <div class="bar"><i style="width:${totCap ? Math.round(pagCap/totCap*100) : 100}%"></i></div>
@@ -408,7 +469,7 @@ function tablaCuotas(L){
   return `<div class="tblwrap" style="margin-top:12px"><table><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Cap.</th><th class="n">Int.</th><th class="n">Total</th><th>Estado</th><th></th></tr></thead><tbody>
   ${L.cuotas.map((c,i) => {
     const late = !c.pagado && c.fecha < t;
-    const est = c.pagado ? `<span class="chip green">Pagado ${fD(c.fechaPago)}</span>` : late ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>';
+    const est = (c.pagado ? `<span class="chip green">Pagado ${fD(c.fechaPago)}</span>` : late ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>') + (chipMora(L, c) ? ' ' + chipMora(L, c) : '');
     const acc = c.tipo === 'interes'
       ? `<button class="btn sm" onclick="anularInteres('${L.id}','${c.id}')">Anular</button>`
       : c.pagado ? `<button class="btn sm" onclick="despagar('${L.id}','${c.id}')">Deshacer</button> <button class="btn sm" onclick="dlgCuota('${L.id}','${c.id}')">✎</button>`
@@ -541,53 +602,176 @@ async function guardarNuevo(){
   if (archivos.length) await subirAdjuntos(L.id, archivos);
 }
 
-/* ---------- Ganancias ---------- */
-function vGanancias(){
-  const t = hoy(), mesAct = t.slice(0,7), anio = t.slice(0,4);
-  const todas = []; S.prestamos.forEach(L => L.cuotas.forEach(c => todas.push({L,c})));
-  const pagos = todas.filter(x => x.c.pagado && x.c.fechaPago);
-  const ganado = m => r2(pagos.filter(x => mesKey(x.c.fechaPago) === m).reduce((s,x) => s + x.c.interes, 0));
-  const capCob = m => r2(pagos.filter(x => mesKey(x.c.fechaPago) === m).reduce((s,x) => s + x.c.capital, 0));
-  const porCobrar = m => r2(todas.filter(x => !x.c.pagado && mesKey(x.c.fecha) === m).reduce((s,x) => s + x.c.interes, 0));
-  const nombre = m => { const p = P(m+'-01'); return MESES[p.m-1] + (String(p.y) !== anio ? ' ' + String(p.y).slice(2) : ''); };
-  const meses = Array.from({length:9}, (_,i) => addMonths(mesAct + '-01', i - 5).slice(0,7));
-  const filas = meses.map(m => ({m, g:ganado(m), p:porCobrar(m), c:capCob(m)}));
-  const max = Math.max(1, ...filas.map(f => f.g + f.p));
-  const primero = pagos.map(x => mesKey(x.c.fechaPago)).sort()[0];
-  const ult6 = Array.from({length:6}, (_,i) => addMonths(mesAct + '-01', -i).slice(0,7)).filter(m => primero && m >= primero);
-  const prom = ult6.length ? r2(ult6.reduce((s,m) => s + ganado(m), 0) / ult6.length) : 0;
-  const anioG = r2(pagos.filter(x => x.c.fechaPago.startsWith(anio)).reduce((s,x) => s + x.c.interes, 0));
-  const sel = pagos.filter(x => mesHist === 'todo' || mesKey(x.c.fechaPago) === mesHist).sort((a,b) => b.c.fechaPago.localeCompare(a.c.fechaPago));
-  const mesesPago = [...new Set([mesAct, ...pagos.map(x => mesKey(x.c.fechaPago))])].sort().reverse();
-  const nombreLargo = m => { const p = P(m+'-01'); return MESES[p.m-1] + ' ' + p.y; };
+/* ---------- Clientes ---------- */
+const MESL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const nombreMes = (m, corto) => { const p = P(m + '-01'); return corto ? MESES[p.m-1] + ' ' + String(p.y).slice(2) : MESL[p.m-1] + ' ' + p.y; };
+const claveCliente = n => n.trim().toLowerCase();
+function avatar(nombre, grande){
+  let h = 0; for (const ch of claveCliente(nombre)) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  const ini = nombre.trim().split(/\s+/).filter(w => /^\p{L}/u.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+  return `<span class="av${grande ? ' lg' : ''}" style="--h:${h}">${esc(ini)}</span>`;
+}
+function datosClientes(){
+  const grupos = new Map();
+  for (const L of S.prestamos){ const k = claveCliente(L.cliente); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(L); }
+  return [...grupos].map(([k, ps]) => {
+    ps = ps.slice().sort(porCreacion);
+    const cs = ps.flatMap(L => L.cuotas), pend = cs.filter(c => !c.pagado), ult = ps.at(-1), ultimoDe = f => ps.map(f).filter(Boolean).at(-1);
+    return {k, prestamos:ps, nombre:ult.cliente, apodo:ultimoDe(L => L.apodo) || '', tel:ultimoDe(L => L.tel) || '', ingreso:ultimoDe(L => L.ingreso) || 0,
+      prestado:r2(ps.reduce((s, L) => s + (+L.capital || 0), 0)),
+      cobrado:r2(cs.filter(c => c.pagado).reduce((s, c) => s + c.capital + c.interes, 0)),
+      ganado:r2(cs.filter(c => c.pagado).reduce((s, c) => s + c.interes, 0)),
+      debe:r2(pend.reduce((s, c) => s + c.capital + c.interes, 0)),
+      atrasado:pend.some(c => c.fecha < hoy()), activos:ps.filter(L => pendientes(L).length).length,
+      cumpl:cumplimiento(cs), desde:ps.map(L => L.cuotas[0]?.fecha || L.creado).sort()[0]};
+  });
+}
+let clienteSel = null, filtroCli = '', ordenCli = 'deuda', listaCli = [];
+function irCliente(lid){ clienteSel = claveCliente(buscarL(lid).cliente); ir('clientes'); }
+function verCliente(i){ clienteSel = listaCli[i].k; render(); window.scrollTo(0,0); }
+function chipCliente(c){ return c.debe ? (c.atrasado ? '<span class="chip red">Atrasado</span>' : '<span class="chip blue">Debe</span>') : '<span class="chip green">Sin deuda</span>'; }
+
+function vClientes(){
+  if (clienteSel) return vCliente(clienteSel);
+  const todos = datosClientes(), q = filtroCli.toLowerCase();
+  const orden = {deuda:(a,b) => b.debe - a.debe || a.nombre.localeCompare(b.nombre), az:(a,b) => a.nombre.localeCompare(b.nombre),
+    prestado:(a,b) => b.prestado - a.prestado, ganado:(a,b) => b.ganado - a.ganado, cumpl:(a,b) => (b.cumpl ?? -1) - (a.cumpl ?? -1)}[ordenCli];
+  listaCli = todos.filter(c => !q || c.nombre.toLowerCase().includes(q) || c.apodo.toLowerCase().includes(q)).sort(orden);
+  const suma = f => r2(todos.reduce((s, c) => s + c[f], 0));
   app.innerHTML = `<div class="kpis">
-    <div class="kpi"><div class="l">Ganado en ${nombre(mesAct)}</div><div class="v" style="color:var(--brand)">${money(ganado(mesAct))}</div><div class="s">interés cobrado este mes</div></div>
-    <div class="kpi"><div class="l">Esperado en ${nombre(mesAct)}</div><div class="v">${money(ganado(mesAct) + porCobrar(mesAct))}</div><div class="s">faltan ${money(porCobrar(mesAct))} por cobrar</div></div>
-    <div class="kpi"><div class="l">Promedio mensual</div><div class="v">${money(prom)}</div><div class="s">${ult6.length ? `últimos ${ult6.length} mes${ult6.length > 1 ? 'es' : ''}` : 'aún sin pagos'}</div></div>
-    <div class="kpi"><div class="l">Ganado en ${anio}</div><div class="v">${money(anioG)}</div><div class="s">interés de todo el año</div></div>
+    <div class="kpi"><div class="l">Clientes</div><div class="v">${todos.length}</div><div class="s">${todos.filter(c => c.activos).length} con deuda activa</div></div>
+    <div class="kpi"><div class="l">Te deben ahora</div><div class="v">${money(suma('debe'))}</div><div class="s">${todos.filter(c => c.atrasado).length} con atraso</div></div>
+    <div class="kpi"><div class="l">Prestado en total</div><div class="v">${money(suma('prestado'))}</div><div class="s">suma de todos los préstamos</div></div>
+    <div class="kpi"><div class="l">Ganancia total</div><div class="v" style="color:var(--brand)">${money(suma('ganado'))}</div><div class="s">interés cobrado</div></div>
   </div>
-  <h2>Ganancia por mes <small>· interés</small></h2>
-  <div class="card chart"><div class="bars">${filas.map(f => `<div class="bcol ${f.m === mesAct ? 'cur' : ''}">
-      <div class="bval">${f.g + f.p ? num(f.g + f.p) : ''}</div>
-      <div class="bstack" style="height:${Math.round((f.g + f.p) / max * 120)}px">${f.p ? `<i class="bp" style="flex:${f.p}"></i>` : ''}${f.g ? `<i class="bg" style="flex:${f.g}"></i>` : ''}</div>
-      <div class="blab">${nombre(f.m)}</div></div>`).join('')}</div>
-    <div class="legend"><span><i class="bg"></i>Ganado</span><span><i class="bp"></i>Por cobrar</span></div></div>
-  <div class="card" style="margin-top:12px"><div class="tblwrap"><table><thead><tr><th>Mes</th><th class="n">Interés ganado</th><th class="n">Interés por cobrar</th><th class="n">Capital recuperado</th></tr></thead><tbody>
-    ${filas.slice().reverse().map(f => `<tr ${f.m === mesAct ? 'style="font-weight:700"' : ''}><td>${nombreLargo(f.m)}</td><td class="n" style="color:var(--brand)">${num(f.g)}</td><td class="n">${num(f.p)}</td><td class="n">${num(f.c)}</td></tr>`).join('')}
-  </tbody></table></div></div>
-  <h2>Pagos recibidos</h2>
-  <div class="toolbar" style="margin-top:0"><select id="selMes" style="max-width:200px"><option value="todo">Todos los meses</option>${mesesPago.map(m => `<option value="${m}" ${m === mesHist ? 'selected' : ''}>${nombreLargo(m)}</option>`).join('')}</select></div>
-  <div class="card"><div class="tblwrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Cuota</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th></tr></thead><tbody>
-  ${sel.map(p => `<tr><td>${fD(p.c.fechaPago)}</td><td>${esc(p.L.cliente)}</td><td>${posicion(p.L,p.c)}${p.c.tipo === 'interes' ? ' <span class="chip amber">solo int.</span>' : ''}</td><td class="n">${num(p.c.capital)}</td><td class="n">${num(p.c.interes)}</td><td class="n"><b>${num(p.c.capital + p.c.interes)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Sin pagos en este periodo.</td></tr>'}
-  </tbody></table></div>
-  <div class="sumrow"><span>Capital recuperado <b>${money(sel.reduce((s,p) => s + p.c.capital, 0))}</b></span><span>Ganancia <b style="color:var(--brand)">${money(sel.reduce((s,p) => s + p.c.interes, 0))}</b></span><span>Total cobrado <b>${money(sel.reduce((s,p) => s + p.c.capital + p.c.interes, 0))}</b></span></div></div>`;
-  document.getElementById('selMes').onchange = e => { mesHist = e.target.value; vGanancias(); };
+  <div class="toolbar"><input id="buscarCli" placeholder="🔍 Buscar cliente o apodo…" value="${esc(filtroCli)}">
+    <select id="ordenCli" style="max-width:200px">${[['deuda','Más deuda primero'],['az','Nombre (A–Z)'],['prestado','Más prestado'],['ganado','Más ganancia'],['cumpl','Mejor cumplimiento']]
+      .map(([v,t]) => `<option value="${v}" ${v === ordenCli ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+  <div class="clientes">${listaCli.map((c, i) => `<div class="card cli" onclick="verCliente(${i})">
+    <div class="cli-hd">${avatar(c.nombre)}<div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${c.apodo ? ` <span class="hint">“${esc(c.apodo)}”</span>` : ''}
+      <div class="hint">${c.prestamos.length} préstamo${c.prestamos.length > 1 ? 's' : ''} · desde ${nombreMes(c.desde.slice(0,7), true)}</div></div>
+      <div class="chips">${chipCliente(c)}${chipCumpl(c.cumpl)}</div></div>
+    <div class="cli-nums"><div><span>Prestado</span><b>${money(c.prestado)}</b></div><div><span>Ganancia</span><b style="color:var(--brand)">${money(c.ganado)}</b></div>
+      <div><span>Debe</span><b ${c.atrasado ? 'style="color:var(--red)"' : ''}>${money(c.debe)}</b></div></div>
+  </div>`).join('') || '<div class="card empty">Ningún cliente coincide con la búsqueda.</div>'}</div>`;
+  const b = document.getElementById('buscarCli');
+  b.oninput = () => { filtroCli = b.value; const pos = b.selectionStart; vClientes(); const nb = document.getElementById('buscarCli'); nb.focus(); nb.setSelectionRange(pos, pos); };
+  document.getElementById('ordenCli').onchange = e => { ordenCli = e.target.value; vClientes(); };
+}
+
+function vCliente(k){
+  const c = datosClientes().find(x => x.k === k);
+  if (!c){ clienteSel = null; return vClientes(); }
+  const ps = c.prestamos.slice().reverse(), activo = ps.find(L => pendientes(L).length);
+  app.innerHTML = `<div class="toolbar" style="margin-top:0"><button class="btn" onclick="clienteSel=null;render()">← Todos los clientes</button></div>
+  <div class="card" style="padding:16px">
+    <div class="cli-hd">${avatar(c.nombre, true)}<div style="flex:1;min-width:0"><h2 style="margin:0;font-size:20px">${esc(c.nombre)}</h2>
+      <div class="hint">${[c.apodo && `“${esc(c.apodo)}”`, c.tel && `📞 ${esc(c.tel)}`, c.ingreso && `💼 gana ${money(c.ingreso)} al mes`, `cliente desde ${nombreMes(c.desde.slice(0,7))}`].filter(Boolean).join(' · ')}</div></div>
+      <div class="chips">${chipCliente(c)}${chipCumpl(c.cumpl)}</div></div>
+    <div class="acts" style="margin-top:12px">
+      ${activo ? `<button class="btn wa" onclick="enviarEstado('${activo.id}')">📤 Enviar estado</button>` : ''}
+      <button class="btn pri" onclick="nuevoParaCliente()">+ Nuevo préstamo</button></div>
+  </div>
+  <div class="kpis" style="margin-top:12px">
+    <div class="kpi"><div class="l">Prestado en total</div><div class="v">${money(c.prestado)}</div><div class="s">en ${c.prestamos.length} préstamo${c.prestamos.length > 1 ? 's' : ''}</div></div>
+    <div class="kpi"><div class="l">Ganancia (interés)</div><div class="v" style="color:var(--brand)">${money(c.ganado)}</div><div class="s">ya cobrado</div></div>
+    <div class="kpi"><div class="l">Ya pagó</div><div class="v">${money(c.cobrado)}</div><div class="s">capital + interés</div></div>
+    <div class="kpi ${c.atrasado ? 'red' : ''}"><div class="l">Debe ahora</div><div class="v">${money(c.debe)}</div><div class="s">${c.activos ? `${c.activos} préstamo${c.activos > 1 ? 's' : ''} activo${c.activos > 1 ? 's' : ''}` : 'sin deuda'}</div></div>
+  </div>
+  <h2>Historial de préstamos</h2>
+  ${ps.map(L => {
+    const e = estadoPrestamo(L), t = hoy(), ini = L.cuotas[0]?.fecha, fin = L.cuotas.at(-1)?.fecha;
+    return `<div class="card tl">
+      <div class="hd"><div><b>${ini ? nombreMes(ini.slice(0,7)) : ''}${fin && fin.slice(0,7) !== ini?.slice(0,7) ? ' → ' + nombreMes(fin.slice(0,7)) : ''}</b>
+        <div class="hint">${money(L.capital)}${L.modo === 'pct' ? ` al ${num(L.valor)}%` : ''} · ${L.cuotas.length} cuota${L.cuotas.length > 1 ? 's' : ''}</div></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="chip ${e.cls}">${e.t}</span>${chipCumpl(cumplimiento(L.cuotas))}</div></div>
+      <div class="formula">${esc(L.formula).replace(/\n/g,'<br>')}</div>
+      <div class="tblwrap"><table><tbody>${L.cuotas.map((q, i) => `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t ? 'late' : ''}"><td>${i+1}${q.tipo === 'interes' ? ' <span class="chip amber">solo int.</span>' : ''}</td><td>${fD(q.fecha)}</td>
+        <td class="n">${num(q.capital)} + ${num(q.interes)}</td><td class="n"><b>${num(q.capital + q.interes)}</b></td>
+        <td>${q.pagado ? `<span class="chip green">Pagado ${fD(q.fechaPago)}</span>` : q.fecha < t ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>'}</td></tr>`).join('')}</tbody></table></div>
+      ${L.nota ? `<div class="hint" style="margin-top:8px">📝 ${esc(L.nota)}</div>` : ''}
+      <div class="acts" style="margin-top:10px"><button class="btn sm" onclick="abrirPrestamo('${L.id}')">Abrir en Préstamos</button></div>
+    </div>`;
+  }).join('')}`;
+}
+function nuevoParaCliente(){
+  const c = datosClientes().find(x => x.k === clienteSel); if (!c) return;
+  borrador = {...nuevoBorrador(), cliente:c.nombre, apodo:c.apodo, tel:c.tel, ingreso:c.ingreso || ''};
+  ir('nuevo');
+}
+function abrirPrestamo(lid){ const L = buscarL(lid); filtro = L.cliente; abiertos.add(lid); ir('prestamos'); }
+
+/* ---------- Meses ---------- */
+let mesSel = hoy().slice(0,7), filtroMes = 'todos';
+function moverMes(k){ mesSel = addMonths(mesSel + '-01', k).slice(0,7); render(); }
+function filaMes(L, c){
+  const t = hoy(), st = c.pagado ? (c.tipo === 'interes' ? 'int' : 'ok') : c.fecha < t ? 'late' : 'pend';
+  const chip = {ok:`<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span>`, int:`<span class="chip amber">✓ Solo interés ${fD(c.fechaPago)}</span>`,
+    late:`<span class="chip red">Atrasado ${daysBetween(c.fecha, t)} d</span>`, pend:'<span class="chip gray">Pendiente</span>'}[st];
+  return `<div class="row mrow st-${st}">${avatar(L.cliente)}
+    <div class="who"><b class="link" onclick="irCliente('${L.id}')">${esc(L.cliente)}</b>${L.modo === 'pct' ? ` <span class="hint">(${num(L.valor)}%)</span>` : ''} <span class="chip gray">${posicion(L, c)}</span>
+      <div class="nota-l">${c.tipo === 'interes' ? `solo interés ${num(c.interes)}` : `${num(c.capital)} - ${num(c.interes)}`} <span class="hint">(${fD(c.fecha)})</span> = <b>${num(c.capital + c.interes)}</b></div>
+      ${L.nota ? `<div class="meta">${esc(L.nota.length > 150 ? L.nota.slice(0, 150) + '…' : L.nota)}</div>` : ''}</div>
+    <div class="acts" style="align-items:center">${chip}${chipMora(L, c)}${!c.pagado ? `<button class="btn sm pri" onclick="pagar('${L.id}','${c.id}')">✓ Pagó</button>` : ''}</div></div>`;
+}
+function vMeses(){
+  const t = hoy(), mesAct = t.slice(0,7), anio = mesSel.slice(0,4);
+  const todas = []; S.prestamos.forEach(L => L.cuotas.forEach(c => todas.push({L, c})));
+  const pagos = todas.filter(x => x.c.pagado && x.c.fechaPago);
+  const ganado = m => r2(pagos.filter(x => mesKey(x.c.fechaPago) === m).reduce((s, x) => s + x.c.interes, 0));
+  const porCobrar = m => r2(todas.filter(x => !x.c.pagado && mesKey(x.c.fecha) === m).reduce((s, x) => s + x.c.interes, 0));
+  const del = todas.filter(x => mesKey(x.c.fecha) === mesSel).sort((a, b) => a.c.fecha.localeCompare(b.c.fecha) || a.L.cliente.localeCompare(b.L.cliente));
+  const sum = (arr, f) => r2(arr.reduce((s, x) => s + f(x.c), 0)), tot = c => c.capital + c.interes;
+  const total = sum(del, tot), cobrado = sum(del.filter(x => x.c.pagado), tot), falta = r2(total - cobrado);
+  const pend = del.filter(x => !x.c.pagado), pag = del.filter(x => x.c.pagado);
+  const lista = filtroMes === 'pend' ? pend : filtroMes === 'pag' ? pag : del;
+  const meses = Array.from({length:12}, (_, i) => addMonths(mesSel + '-01', i - 8).slice(0,7));
+  const barras = meses.map(m => ({m, g:ganado(m), p:porCobrar(m)})), max = Math.max(1, ...barras.map(b => b.g + b.p));
+  const pagosMes = pagos.filter(x => mesKey(x.c.fechaPago) === mesSel).sort((a, b) => a.c.fechaPago.localeCompare(b.c.fechaPago));
+  const primero = pagos.map(x => mesKey(x.c.fechaPago)).sort()[0];
+  const ult6 = Array.from({length:6}, (_, i) => addMonths(mesAct + '-01', -i).slice(0,7)).filter(m => primero && m >= primero);
+  const prom = ult6.length ? r2(ult6.reduce((s, m) => s + ganado(m), 0) / ult6.length) : 0;
+  const anioG = r2(pagos.filter(x => x.c.fechaPago.startsWith(anio)).reduce((s, x) => s + x.c.interes, 0));
+  app.innerHTML = `<div class="mes-nav"><button class="btn" onclick="moverMes(-1)" aria-label="Mes anterior">◀</button><h2>${nombreMes(mesSel)}</h2>
+      <button class="btn" onclick="moverMes(1)" aria-label="Mes siguiente">▶</button></div>
+    ${mesSel !== mesAct ? `<div style="text-align:center;margin:-6px 0 12px"><button class="btn sm" onclick="mesSel='${mesAct}';render()">Ir al mes actual</button></div>` : ''}
+  <div class="kpis">
+    <div class="kpi"><div class="l">A cobrar en el mes</div><div class="v">${money(total)}</div><div class="s">${del.length} cuota${del.length !== 1 ? 's' : ''}</div></div>
+    <div class="kpi"><div class="l">Cobrado</div><div class="v" style="color:var(--brand)">${money(cobrado)}</div><div class="s">${pag.length} pagada${pag.length !== 1 ? 's' : ''}</div></div>
+    <div class="kpi ${pend.some(x => x.c.fecha < t) ? 'red' : ''}"><div class="l">Falta cobrar</div><div class="v">${money(falta)}</div><div class="s">${pend.length} pendiente${pend.length !== 1 ? 's' : ''}</div></div>
+    <div class="kpi"><div class="l">Ganancia del mes</div><div class="v" style="color:var(--brand)">${money(ganado(mesSel))}</div><div class="s">interés cobrado${porCobrar(mesSel) ? ` · faltan ${money(porCobrar(mesSel))}` : ''}</div></div>
+  </div>
+  <div class="bar big"><i style="width:${total ? Math.round(cobrado / total * 100) : 0}%"></i></div>
+  <div class="hint">${total ? Math.round(cobrado / total * 100) : 0}% del mes cobrado</div>
+
+  <h2>Cuotas del mes <small>· como en tu nota</small></h2>
+  <div class="seg">${[['todos', `Todas (${del.length})`], ['pend', `Pendientes (${pend.length})`], ['pag', `Pagadas (${pag.length})`]]
+    .map(([v, txt]) => `<button class="${filtroMes === v ? 'on' : ''}" onclick="filtroMes='${v}';render()">${txt}</button>`).join('')}</div>
+  <div class="card list">${lista.map(x => filaMes(x.L, x.c)).join('') || `<div class="empty">No hay cuotas ${filtroMes === 'pend' ? 'pendientes ' : filtroMes === 'pag' ? 'pagadas ' : ''}en ${nombreMes(mesSel)}.</div>`}</div>
+
+  <h2>Ganancia por mes <small>· toca un mes para verlo</small></h2>
+  <div class="card chart"><div class="bars">${barras.map(b => `<div class="bcol ${b.m === mesSel ? 'sel' : ''} ${b.m === mesAct ? 'cur' : ''}" onclick="mesSel='${b.m}';render()">
+      <div class="bval">${b.g + b.p ? num(b.g + b.p) : ''}</div>
+      <div class="bstack" style="height:${Math.round((b.g + b.p) / max * 120)}px">${b.p ? `<i class="bp" style="flex:${b.p}"></i>` : ''}${b.g ? `<i class="bg" style="flex:${b.g}"></i>` : ''}</div>
+      <div class="blab">${nombreMes(b.m, true).split(' ')[0]}</div></div>`).join('')}</div>
+    <div class="legend"><span><i class="bg"></i>Ganado</span><span><i class="bp"></i>Por cobrar</span></div>
+    <div class="hint" style="text-align:center;margin-top:8px">Promedio mensual (últimos ${ult6.length || 0} meses): <b>${money(prom)}</b> · Ganado en ${anio}: <b>${money(anioG)}</b></div></div>
+
+  <details class="card" style="margin-top:12px"><summary>Pagos recibidos en ${nombreMes(mesSel)} (${pagosMes.length}) · ${money(pagosMes.reduce((s, x) => s + x.c.capital + x.c.interes, 0))}</summary>
+    <div class="tblwrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Cuota</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th></tr></thead><tbody>
+    ${pagosMes.map(p => `<tr><td>${fD(p.c.fechaPago)}</td><td>${esc(p.L.cliente)}</td><td>${posicion(p.L, p.c)}${p.c.tipo === 'interes' ? ' <span class="chip amber">solo int.</span>' : ''}</td><td class="n">${num(p.c.capital)}</td><td class="n">${num(p.c.interes)}</td><td class="n"><b>${num(p.c.capital + p.c.interes)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Sin pagos en este mes.</td></tr>'}
+    </tbody></table></div></details>`;
 }
 
 /* ---------- Respaldo ---------- */
 function vRespaldo(){
   const d = S.drive || {};
-  app.innerHTML = seccionNube() + `<h2>Respaldo de datos</h2>
+  app.innerHTML = seccionNube() + `<h2>Mora por atraso</h2>
+  <div class="card" style="padding:16px">
+    <label style="max-width:260px">Mora por cada día de atraso (S/)<input type="number" min="0" step="any" value="${moraDia()}" onchange="S.moraDia=Math.max(0,+this.value||0);save()"></label>
+    <p class="hint" style="margin-bottom:0">Se suma sola desde el primer día de atraso y se cobra al registrar el pago. En cada cuota atrasada hay un botón <b>Exonerar</b> por si quieres perdonarla (por ejemplo, si al cliente no le pagaron en el trabajo). Pon 0 para no cobrar mora.</p>
+  </div>
+  <h2>Respaldo de datos</h2>
   <div class="card" style="padding:16px">
     <p style="margin-top:0">Tus datos se guardan <b>solo en este celular (o computadora)</b>; no se suben a internet por sí solos. Si borras los datos del navegador o cambias de equipo, se pierden, así que <b>descarga un respaldo cada semana</b> o guárdalo en Google Drive.</p>
     <p class="hint">Último respaldo: ${S.ultimoRespaldo ? fD(S.ultimoRespaldo) : 'nunca'}</p>
@@ -1074,7 +1258,7 @@ async function salirNube(){
 }
 function cortarNube(){ nube.subs.forEach(f => f()); nube.subs = []; nube.uid = null; nube.email = null; nube.ultimos = new Map(); nube.metaUlt = null; nube.estadosUlt = new Map(); }
 
-const metaDe = () => JSON.stringify({ultimoRespaldo:S.ultimoRespaldo || null, drive:S.drive || null, clientes:S.clientes || {}});
+const metaDe = () => JSON.stringify({ultimoRespaldo:S.ultimoRespaldo || null, drive:S.drive || null, clientes:S.clientes || {}, moraDia:moraDia()});
 const porCreacion = (a, b) => (a.creado || '').localeCompare(b.creado || '') || a.id.localeCompare(b.id);
 async function conectarDatos(u){
   if (nube.uid === u.uid && nube.subs.length) return;
@@ -1240,15 +1424,30 @@ const buscarL = id => S.prestamos.find(l => l.id === id);
 let deshacer = null;
 function snapshot(){ return JSON.stringify(S.prestamos); }
 function pagar(lid, cid){
-  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), snap = snapshot();
+  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), snap = snapshot(), mora = moraDe(c);
+  if (mora){ c.mora = mora; c.interes = r2(c.interes + mora); }
   c.pagado = true; c.fechaPago = hoy();
-  L.eventos.push({f:hoy(), t:`Pagó cuota ${posicion(L,c)}: ${money(c.capital+c.interes)}`});
+  L.eventos.push({f:hoy(), t:`Pagó cuota ${posicion(L,c)}: ${money(c.capital+c.interes)}${mora ? ` (incluye ${money(mora)} de mora)` : ''}`});
   save(); toast(`${L.cliente}: cuota ${posicion(L,c)} pagada (${money(c.capital+c.interes)})`, snap);
 }
 function despagar(lid, cid){
   const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid);
   if (!confirm(`¿Marcar la cuota ${posicion(L,c)} de ${L.cliente} como NO pagada?`)) return;
+  if (c.mora){ c.interes = r2(c.interes - c.mora); delete c.mora; }
   c.pagado = false; c.fechaPago = null; L.eventos.push({f:hoy(), t:`Se desmarcó el pago de la cuota ${posicion(L,c)}`}); save();
+}
+function exonerar(lid, cid){
+  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), snap = snapshot();
+  c.moraExonerada = !c.moraExonerada;
+  L.eventos.push({f:hoy(), t:c.moraExonerada ? `Mora exonerada en la cuota ${posicion(L,c)}` : `Se vuelve a cobrar mora en la cuota ${posicion(L,c)}`});
+  save(); toast(c.moraExonerada ? `${L.cliente}: mora exonerada 💚` : `${L.cliente}: se cobra la mora`, snap);
+}
+function quitarMora(lid, cid){
+  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), snap = snapshot();
+  if (!c.mora) return;
+  L.eventos.push({f:hoy(), t:`Mora de ${money(c.mora)} exonerada en la cuota ${posicion(L,c)}`});
+  c.interes = r2(c.interes - c.mora); delete c.mora; c.moraExonerada = true;
+  save(); toast(`${L.cliente}: mora exonerada 💚`, snap);
 }
 function anularInteres(lid, cid){
   const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid);
@@ -1260,7 +1459,8 @@ function eliminar(lid){ const L = buscarL(lid); if (!confirm(`¿Eliminar el pré
 function whatsapp(lid, cid){
   const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), t = hoy();
   const venc = c.fecha < t ? `venció el ${fD(c.fecha)}` : c.fecha === t ? 'vence hoy' : `vence el ${fD(c.fecha)}`;
-  const msg = `Hola ${L.cliente}, te recuerdo que tu cuota ${posicion(L,c)} de ${money(c.capital+c.interes)} ${venc}. Cualquier cosa me avisas. ¡Gracias!`;
+  const mora = moraDe(c);
+  const msg = `Hola ${L.cliente}, te recuerdo que tu cuota ${posicion(L,c)} de ${money(c.capital+c.interes)} ${venc}.${mora ? ` A hoy suma ${money(mora)} de mora (${money(moraDia())} por día), total ${money(totalHoy(c))}.` : ''} Cualquier cosa me avisas. ¡Gracias!`;
   let tel = (L.tel||'').replace(/\D/g,''); if (tel.length === 9) tel = '51'+tel;
   window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank');
 }
@@ -1282,7 +1482,7 @@ const val = (b,n) => b.querySelector(`[name=${n}]`).value;
 function dlgSoloInteres(lid, cid){
   const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid);
   dialogo(`${L.cliente} paga solo interés`, `<div class="form">
-    <label>Monto de interés (S/)<input name="m" type="number" step="any" value="${c.interes}"></label>
+    <label>Monto de interés (S/)<input name="m" type="number" step="any" value="${r2(c.interes + moraDe(c))}">${moraDe(c) ? `<span class="hint" style="font-weight:400">Incluye ${money(moraDe(c))} de mora; bórrala si la exoneras.</span>` : ''}</label>
     <label>Fecha de pago<input name="f" type="date" value="${hoy()}"></label>
     <p class="full hint" id="expl" style="margin:0"></p></div>`,
     b => { const s = snapshot(); aplicarSoloInteres(L, c, +val(b,'m')||0, val(b,'f')||hoy()); save(); toast(`${L.cliente}: la deuda se corrió un mes`, s); },
