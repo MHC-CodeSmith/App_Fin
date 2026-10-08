@@ -108,7 +108,7 @@ El ID de cliente no es secreto (Google lo diseña para ir en el código de la p�
 - **Sin riesgo hasta**: interés ya cobrado al cliente − capital que todavía debe. Un préstamo nuevo menor o igual a ese monto queda cubierto por lo ya ganado con esa persona (en *Nuevo* aparece el aviso).
 - **Abono**: si el cliente paga de más, el monto se descuenta de las próximas cuotas (primero capital, luego interés). Queda registrado como *abono* (cuenta como cobrado ese día) y las cuotas que llegan a 0 quedan *cubiertas*. Se puede anular.
 - **% cumplido**: de las cuotas ya vencidas (o pagadas), cuántas se pagaron completas en o antes de su fecha límite. Un mes de *solo interés* cuenta como no cumplido.
-- **Ganancia del mes**: interés de las cuotas cobradas ese mes (por fecha de pago). *Por cobrar*: interés de las cuotas que vencen ese mes y aún no se pagan.
+- **Mes y año de cada cuota**: siempre por su **fecha límite**, aunque el cliente pague antes (adelanto) o después. Ganancia del mes = interés de las cuotas pagadas que vencen ese mes; *por cobrar* = interés de las que vencen ese mes y aún no se pagan.
 
 ## Archivos
 

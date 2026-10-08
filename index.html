@@ -266,13 +266,14 @@ const fechaFmt = cuotas => cuotas.some(c => c.fecha.slice(0,4) !== String(new Da
 let anioFoco = (() => { try { return sessionStorage.getItem('belubank.anio') || hoy().slice(0,4); } catch(e){ return hoy().slice(0,4); } })();
 const enAnio = f => anioFoco === 'todos' || (!!f && f.startsWith(anioFoco));
 const sufAnio = () => anioFoco === 'todos' ? '' : ' ' + anioFoco;
-// Un préstamo es del año si empieza ese año, si recibió algún pago ese año o (en el año actual) si todavía tiene cuotas pendientes.
+// Un préstamo es del año si alguna de sus cuotas vence ese año o (en el año actual) si todavía tiene cuotas pendientes.
+// Todo lo que se suma por mes o por año usa la FECHA LÍMITE de la cuota, aunque el cliente haya pagado antes o después.
 const prestamoEnAnio = L => anioFoco === 'todos' || enAnio(L.cuotas[0]?.fecha || L.creado)
-  || L.cuotas.some(c => c.pagado && c.fechaPago && enAnio(c.fechaPago)) || (anioFoco >= hoy().slice(0,4) && L.cuotas.some(c => !c.pagado));
+  || L.cuotas.some(c => enAnio(c.fecha)) || (anioFoco >= hoy().slice(0,4) && L.cuotas.some(c => !c.pagado));
 function pintarAnios(){
   const sel = document.getElementById('anioSel'); if (!sel) return;
   const anios = new Set([hoy().slice(0,4)]);
-  S.prestamos.forEach(L => L.cuotas.forEach(c => { anios.add(c.fecha.slice(0,4)); if (c.fechaPago) anios.add(c.fechaPago.slice(0,4)); }));
+  S.prestamos.forEach(L => L.cuotas.forEach(c => anios.add(c.fecha.slice(0,4))));
   if (anioFoco !== 'todos') anios.add(anioFoco);
   sel.innerHTML = [...anios].sort().reverse().map(a => `<option value="${a}">${a}</option>`).join('') + '<option value="todos">Todos los años</option>';
   sel.value = anioFoco;
@@ -457,7 +458,7 @@ function bannerRespaldo(){
 
 /* Resumen del año en foco (por defecto, el año actual) en la pantalla principal. */
 function resumenAnio(){
-  const cs = S.prestamos.flatMap(L => L.cuotas), pag = cs.filter(c => c.pagado && enAnio(c.fechaPago || c.fecha));
+  const cs = S.prestamos.flatMap(L => L.cuotas), pag = cs.filter(c => c.pagado && enAnio(c.fecha));
   const nuevos = S.prestamos.filter(L => enAnio(L.cuotas[0]?.fecha || L.creado));
   const clientes = new Set(S.prestamos.filter(prestamoEnAnio).map(L => claveCliente(L.cliente))).size;
   const caja = (cls, l, v, sub) => `<div class="stat ${cls}"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
@@ -498,7 +499,7 @@ function vInicio(){
   const porInt = items.reduce((s,x) => s + x.c.interes, 0);
   const porCobrarMes = [...atras, ...esteMes].reduce((s,x) => s + x.c.capital + x.c.interes, 0);
   let cobradoMes = 0, intMes = 0;
-  S.prestamos.forEach(L => L.cuotas.forEach(c => { if (c.pagado && c.fechaPago && mesKey(c.fechaPago) === mes){ cobradoMes += c.capital+c.interes; intMes += c.interes; }}));
+  S.prestamos.forEach(L => L.cuotas.forEach(c => { if (c.pagado && mesKey(c.fecha) === mes){ cobradoMes += c.capital+c.interes; intMes += c.interes; }}));
   const activos = S.prestamos.filter(L => pendientes(L).length).length;
   const nombreMes = m => { const p = P(m+'-01'); return MESES[p.m-1]; };
 
@@ -831,7 +832,7 @@ function datosClientes(){
     // Lo del año en foco: préstamos, cobros (por fecha de pago) y puntualidad (por fecha límite).
     // Deuda, próximo pago y riesgo siempre se calculan con todo, porque son el estado de hoy.
     const ps = todos.filter(prestamoEnAnio), cs = todos.flatMap(L => L.cuotas), pend = cs.filter(c => !c.pagado);
-    const pagadas = cs.filter(c => c.pagado && enAnio(c.fechaPago || c.fecha)), delAnio = cs.filter(c => enAnio(c.fecha));
+    const pagadas = cs.filter(c => c.pagado && enAnio(c.fecha)), delAnio = cs.filter(c => enAnio(c.fecha));
     const ult = todos.at(-1), ultimoDe = f => todos.map(f).filter(Boolean).at(-1);
     return {k, prestamos:ps, todos, nombre:ult.cliente, apodo:ultimoDe(L => L.apodo) || '', tel:ultimoDe(L => L.tel) || '', ingreso:ultimoDe(L => L.ingreso) || 0,
       prestado:r2(todos.filter(L => enAnio(L.cuotas[0]?.fecha || L.creado)).reduce((s, L) => s + (+L.capital || 0), 0)),
@@ -965,7 +966,7 @@ function vMeses(){
   const t = hoy(), mesAct = t.slice(0,7), anio = mesSel.slice(0,4);
   const todas = []; S.prestamos.forEach(L => L.cuotas.forEach(c => todas.push({L, c})));
   const pagos = todas.filter(x => x.c.pagado && x.c.fechaPago);
-  const ganado = m => r2(pagos.filter(x => mesKey(x.c.fechaPago) === m).reduce((s, x) => s + x.c.interes, 0));
+  const ganado = m => r2(pagos.filter(x => mesKey(x.c.fecha) === m).reduce((s, x) => s + x.c.interes, 0));
   const porCobrar = m => r2(todas.filter(x => !x.c.pagado && mesKey(x.c.fecha) === m).reduce((s, x) => s + x.c.interes, 0));
   const del = todas.filter(x => mesKey(x.c.fecha) === mesSel).sort((a, b) => a.c.fecha.localeCompare(b.c.fecha) || a.L.cliente.localeCompare(b.L.cliente));
   const sum = (arr, f) => r2(arr.reduce((s, x) => s + f(x.c), 0)), tot = c => c.capital + c.interes;
@@ -975,10 +976,10 @@ function vMeses(){
   const meses = Array.from({length:12}, (_, i) => addMonths(mesSel + '-01', i - 8).slice(0,7));
   const barras = meses.map(m => ({m, g:ganado(m), p:porCobrar(m)})), max = Math.max(1, ...barras.map(b => b.g + b.p));
   const pagosMes = pagos.filter(x => mesKey(x.c.fechaPago) === mesSel).sort((a, b) => a.c.fechaPago.localeCompare(b.c.fechaPago));
-  const primero = pagos.map(x => mesKey(x.c.fechaPago)).sort()[0];
+  const primero = pagos.map(x => mesKey(x.c.fecha)).sort()[0];
   const ult6 = Array.from({length:6}, (_, i) => addMonths(mesAct + '-01', -i).slice(0,7)).filter(m => primero && m >= primero);
   const prom = ult6.length ? r2(ult6.reduce((s, m) => s + ganado(m), 0) / ult6.length) : 0;
-  const anioG = r2(pagos.filter(x => x.c.fechaPago.startsWith(anio)).reduce((s, x) => s + x.c.interes, 0));
+  const anioG = r2(pagos.filter(x => x.c.fecha.startsWith(anio)).reduce((s, x) => s + x.c.interes, 0));
   app.innerHTML = `<div class="mes-nav"><button class="btn" onclick="moverMes(-1)" aria-label="Mes anterior">◀</button><h2>${nombreMes(mesSel)}</h2>
       <button class="btn" onclick="moverMes(1)" aria-label="Mes siguiente">▶</button></div>
     ${mesSel !== mesAct ? `<div style="text-align:center;margin:-6px 0 12px"><button class="btn sm" onclick="mesSel='${mesAct}';render()">Ir al mes actual</button></div>` : ''}
@@ -1004,7 +1005,7 @@ function vMeses(){
     <div class="legend"><span><i class="bg"></i>Ganado</span><span><i class="bp"></i>Por cobrar</span></div>
     <div class="hint" style="text-align:center;margin-top:8px">Promedio mensual (últimos ${ult6.length || 0} meses): <b>${money(prom)}</b> · Ganado en ${anio}: <b>${money(anioG)}</b></div></div>
 
-  <details class="card" style="margin-top:12px"><summary>Pagos recibidos en ${nombreMes(mesSel)} (${pagosMes.length}) · ${money(pagosMes.reduce((s, x) => s + x.c.capital + x.c.interes, 0))}</summary>
+  <details class="card" style="margin-top:12px"><summary>Pagos recibidos en ${nombreMes(mesSel)}, por el día en que pagaron (${pagosMes.length}) · ${money(pagosMes.reduce((s, x) => s + x.c.capital + x.c.interes, 0))}</summary>
     <div class="tblwrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Cuota</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th></tr></thead><tbody>
     ${pagosMes.map(p => `<tr><td>${fD(p.c.fechaPago)}</td><td>${esc(p.L.cliente)}</td><td>${posicion(p.L, p.c)}${p.c.tipo === 'interes' ? ' <span class="chip amber">solo int.</span>' : ''}</td><td class="n">${num(p.c.capital)}</td><td class="n">${num(p.c.interes)}</td><td class="n"><b>${num(p.c.capital + p.c.interes)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Sin pagos en este mes.</td></tr>'}
     </tbody></table></div></details>`;
@@ -1223,10 +1224,10 @@ function construirExcel(){
   /* ---- Resumen ---- */
   const todas = filas.map(f => f.c);
   const sumWhere = (pred, f) => r2(todas.filter(pred).reduce((s, c) => s + (f === 'tot' ? c.capital + c.interes : c[f]), 0));
-  const enMes = (c, m) => c.pagado && c.fechaPago && mesKey(c.fechaPago) === m;
+  const enMes = (c, m) => c.pagado && mesKey(c.fecha) === m;
   const mesAct = t.slice(0, 7), anio = +t.slice(0, 4);
   const MESL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const pagadoMes = `${R('I')},"Pagado",${R('J')},">"&EOMONTH(TODAY(),-1),${R('J')},"<="&EOMONTH(TODAY(),0)`;
+  const pagadoMes = `${R('I')},"Pagado",${R('E')},">"&EOMONTH(TODAY(),-1),${R('E')},"<="&EOMONTH(TODAY(),0)`;
   const kpis = [
     ['Capital en la calle', `SUMIFS(${R('F')},${R('I')},"Pendiente")`, sumWhere(c => !c.pagado, 'capital')],
     ['Interés por cobrar', `SUMIFS(${R('G')},${R('I')},"Pendiente")`, sumWhere(c => !c.pagado, 'interes')],
@@ -1255,8 +1256,8 @@ function construirExcel(){
     const cap = sumWhere(c => enMes(c, key), 'capital'), int = sumWhere(c => enMes(c, key), 'interes');
     res.push([{v:m, s:4},
       {f:`SUMIFS(${R('H')},${R('I')},"Pendiente",${rng('E')})`, v:sumWhere(c => !c.pagado && mesKey(c.fecha) === key, 'tot'), s:2},
-      {f:`SUMIFS(${R('F')},${R('I')},"Pagado",${rng('J')})`, v:cap, s:2},
-      {f:`SUMIFS(${R('G')},${R('I')},"Pagado",${rng('J')})`, v:int, s:2},
+      {f:`SUMIFS(${R('F')},${R('I')},"Pagado",${rng('E')})`, v:cap, s:2},
+      {f:`SUMIFS(${R('G')},${R('I')},"Pagado",${rng('E')})`, v:int, s:2},
       {f:`C${r}+D${r}`, v:r2(cap + int), s:2}]);
   });
   const last = res.length;

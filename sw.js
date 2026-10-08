@@ -1,6 +1,6 @@
 // Guarda la app en el celular para que abra sin internet.
 // Los datos de los préstamos NO pasan por aquí: viven en el localStorage del navegador.
-const CACHE = 'belu-bank-v13';
+const CACHE = 'belu-bank-v14';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', e => {
