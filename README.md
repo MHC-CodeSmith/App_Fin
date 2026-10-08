@@ -8,6 +8,7 @@ App web para controlar préstamos y cobros. Moneda: soles (S/).
 - **% cumplido** de cada cliente: cuotas pagadas completas y a tiempo sobre las que ya vencieron.
 - **Meses**: cada mes como en la nota (cliente, %, capital − interés, fecha y si pagó), con lo cobrado, lo que falta, la ganancia del mes y un gráfico para saltar entre meses.
 - **Clientes**: buscador con lo recaudado de cada cliente (capital + interés), lo que debe, su % cumplido y hasta cuánto se le puede prestar sin riesgo; al tocar uno se ve todo su historial.
+- **Año en foco**: arriba se elige el año (al abrir la app siempre es el año actual). La pantalla principal muestra el resumen del año y Clientes, Préstamos y Meses muestran lo de ese año.
 - **Orden en el mes**: si un cliente tiene varios préstamos que empiezan el mismo mes, se marcan como *julio 1º*, *julio 2º*…
 - **Mora**: S/ 5 por día de atraso (configurable), se suma sola al registrar el pago; cada cuota tiene un botón **Exonerar** para perdonarla.
 - **Enviar estado**: enlace por WhatsApp para que el cliente vea solo su préstamo (en vivo si la nube está activa).
@@ -77,7 +78,7 @@ Configuración (ya hecha en el proyecto `belu-bank`):
 ## Enlace de estado para el cliente
 
 En cada préstamo, **📤 Enviar estado** abre WhatsApp con un enlace como `https://mhc-codesmith.github.io/App_Fin/#estado=…`.
-El cliente ve solo su préstamo: lo pagado, lo que falta, la próxima cuota y la lista de cuotas. No ve el resto de la app.
+El cliente ve **solo lo que debe hoy**: el total, cuánto es capital, interés y mora, y su próximo pago (fecha y monto). No ve su historial, ni otros clientes, ni el resto de la app. El enlace y el documento en la nube solo llevan las cuotas pendientes.
 
 - **Con la nube activa**, el enlace es fijo (`#c=<token>`) y muestra siempre el estado actual: se actualiza solo cuando se registra un pago.
 - **Sin nube**, los datos van dentro del enlace (`#estado=…`, después de `#`, que el navegador no envía a ningún servidor) y es una foto del día en que se envía: después de cada pago hay que enviar un enlace nuevo.
