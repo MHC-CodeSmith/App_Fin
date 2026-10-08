@@ -73,6 +73,7 @@ h2 small{color:var(--muted);font-weight:500}
 .chip.green{background:var(--brand-soft);color:var(--brand)}
 .chip.blue{background:var(--blue-soft);color:var(--blue)}
 .chip.gray{background:var(--line);color:var(--muted)}
+.anio{width:auto;padding:5px 8px;font-size:13px;font-weight:600;border-radius:8px}
 .chip.violet{background:var(--violet-soft);color:var(--violet)}
 .riesgo{border-radius:10px;padding:10px 12px;margin:0 0 10px;font-size:14px}
 .riesgo.ok{background:var(--brand-soft);color:var(--brand)}
@@ -149,7 +150,7 @@ table.edit input[type=date]{width:140px}
 .list .row > .av{align-self:flex-start;margin-top:2px}
 .link{cursor:pointer}
 .link:hover{text-decoration:underline}
-.clientes{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.clientes{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px}
 .cli{padding:14px;cursor:pointer;min-width:0;transition:border-color .15s,transform .15s}
 .cli:hover{border-color:var(--brand)}
 .cli:active{transform:scale(.99)}
@@ -221,7 +222,7 @@ details.card > summary{padding:12px 14px;cursor:pointer;font-weight:600;font-siz
 </head>
 <body>
 <header><div class="top">
-  <h1>Belu <span>Bank</span></h1><span id="nubeInd" class="hint" style="font-size:12px;font-weight:600"></span>
+  <h1>Belu <span>Bank</span></h1><span id="nubeInd" class="hint" style="font-size:12px;font-weight:600"></span><select id="anioSel" class="anio" aria-label="Año que se muestra"></select>
   <nav id="nav">
     <button data-v="inicio" class="on">Cobros</button>
     <button data-v="clientes">Clientes</button>
@@ -254,6 +255,26 @@ function addMonths(s, k, dia){
 }
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function fD(s){ if(!s) return '—'; const p = P(s); return pad(p.d)+'/'+pad(p.m)+(p.y !== new Date().getFullYear() ? '/'+p.y : ''); }
+const fDa = s => { if (!s) return '—'; const p = P(s); return pad(p.d) + '/' + pad(p.m) + '/' + p.y; };
+// En la tabla de un préstamo que toca otro año, todas las fechas llevan el año (para no confundir 04/01 con 04/01/2025).
+const fechaFmt = cuotas => cuotas.some(c => c.fecha.slice(0,4) !== String(new Date().getFullYear())) ? fDa : fD;
+
+/* Año en foco: lo que se ve en Clientes, Préstamos y Meses es de ese año hasta que se elija otro. */
+let anioFoco = (() => { try { return localStorage.getItem('belubank.anio') || hoy().slice(0,4); } catch(e){ return hoy().slice(0,4); } })();
+const enAnio = f => anioFoco === 'todos' || (!!f && f.startsWith(anioFoco));
+const sufAnio = () => anioFoco === 'todos' ? '' : ' ' + anioFoco;
+// Un préstamo es del año si empieza ese año, si recibió algún pago ese año o (en el año actual) si todavía tiene cuotas pendientes.
+const prestamoEnAnio = L => anioFoco === 'todos' || enAnio(L.cuotas[0]?.fecha || L.creado)
+  || L.cuotas.some(c => c.pagado && c.fechaPago && enAnio(c.fechaPago)) || (anioFoco >= hoy().slice(0,4) && L.cuotas.some(c => !c.pagado));
+function pintarAnios(){
+  const sel = document.getElementById('anioSel'); if (!sel) return;
+  const anios = new Set([hoy().slice(0,4)]);
+  S.prestamos.forEach(L => L.cuotas.forEach(c => { anios.add(c.fecha.slice(0,4)); if (c.fechaPago) anios.add(c.fechaPago.slice(0,4)); }));
+  if (anioFoco !== 'todos') anios.add(anioFoco);
+  sel.innerHTML = [...anios].sort().reverse().map(a => `<option value="${a}">${a}</option>`).join('') + '<option value="todos">Todos los años</option>';
+  sel.value = anioFoco;
+  sel.style.display = vista === 'inicio' || vista === 'nuevo' || vista === 'respaldo' ? 'none' : '';
+}
 function money(x){ x = r2(x||0); return 'S/ ' + x.toLocaleString('es-PE', {minimumFractionDigits: Number.isInteger(x)?0:2, maximumFractionDigits:2}); }
 const num = x => { x = r2(x||0); return Number.isInteger(x) ? String(x) : x.toFixed(2); };
 const daysBetween = (a,b) => Math.round((new Date(b+'T00:00') - new Date(a+'T00:00'))/864e5);
@@ -385,6 +406,11 @@ const cuotaTipica = L => { const c = L.cuotas.find(c => c.tipo === 'normal'); re
 /* ================= UI ================= */
 let vista = 'inicio', filtro = '', mesHist = hoy().slice(0,7), abiertos = new Set();
 const app = document.getElementById('app');
+document.getElementById('anioSel').onchange = e => {
+  anioFoco = e.target.value; try { localStorage.setItem('belubank.anio', anioFoco); } catch(err){}
+  if (anioFoco !== 'todos') mesSel = anioFoco === hoy().slice(0,4) ? hoy().slice(0,7) : anioFoco + '-12';
+  render();
+};
 document.getElementById('nav').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.v === 'nuevo' && borrador.editId) borrador = nuevoBorrador(); if (b.dataset.v === 'clientes' && vista === 'clientes') clienteSel = null; ir(b.dataset.v); };
 function ir(v){ vista = v; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); render(); window.scrollTo(0,0); }
 
@@ -410,7 +436,7 @@ const textoEtq = L => { const e = etiqueta(L); return e.mes + (e.n ? ` ${e.n}º`
 const chipEtq = L => { const e = etiqueta(L); return e.mes ? ` <span class="chip ${e.n ? 'violet' : 'gray'}">${textoEtq(L)}</span>` : ''; };
 
 function render(){
-  etqCache = null;
+  etqCache = null; pintarAnios();
   ({inicio:vInicio, clientes:vClientes, meses:vMeses, ganancias:vMeses, prestamos:vPrestamos, nuevo:vNuevo, respaldo:vRespaldo})[vista]();
 }
 
@@ -475,9 +501,9 @@ function vInicio(){
 
 function vPrestamos(){
   const q = filtro.toLowerCase();
-  const lista = S.prestamos.filter(L => !q || L.cliente.toLowerCase().includes(q) || (L.apodo || '').toLowerCase().includes(q))
+  const lista = S.prestamos.filter(prestamoEnAnio).filter(L => !q || L.cliente.toLowerCase().includes(q) || (L.apodo || '').toLowerCase().includes(q))
     .sort((a,b) => { const pa = pendientes(a)[0], pb = pendientes(b)[0]; if (!pa) return 1; if (!pb) return -1; return pa.fecha.localeCompare(pb.fecha); });
-  app.innerHTML = bannerRespaldo() + `<div class="toolbar"><input id="buscar" placeholder="Buscar cliente…" value="${esc(filtro)}"><span class="hint">${S.prestamos.length} préstamos en total</span><span style="flex:1"></span><button class="btn" onclick="exportarExcel()">⬇ Excel</button><button class="btn pri" onclick="ir('nuevo')">+ Nuevo préstamo</button></div>
+  app.innerHTML = bannerRespaldo() + `<div class="toolbar"><input id="buscar" placeholder="Buscar cliente…" value="${esc(filtro)}"><span class="hint">${lista.length} préstamo${lista.length !== 1 ? 's' : ''}${anioFoco === 'todos' ? ' en total' : ' en ' + anioFoco}</span><span style="flex:1"></span><button class="btn" onclick="exportarExcel()">⬇ Excel</button><button class="btn pri" onclick="ir('nuevo')">+ Nuevo préstamo</button></div>
   <div class="loans">${lista.map(tarjeta).join('') || '<div class="card empty">Sin préstamos.</div>'}</div>`;
   const b = document.getElementById('buscar');
   b.oninput = () => { filtro = b.value; const pos = b.selectionStart; vPrestamos(); const nb = document.getElementById('buscar'); nb.focus(); nb.setSelectionRange(pos,pos); };
@@ -515,19 +541,20 @@ function tarjeta(L){
 function toggle(id){ abiertos.has(id) ? abiertos.delete(id) : abiertos.add(id); render(); }
 
 function tablaCuotas(L){
+  const fx = fechaFmt(L.cuotas);
   const t = hoy();
   return `<div class="tblwrap" style="margin-top:12px"><table><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Cap.</th><th class="n">Int.</th><th class="n">Total</th><th>Estado</th><th></th></tr></thead><tbody>
   ${L.cuotas.map((c,i) => {
     const late = !c.pagado && c.fecha < t;
-    const est = c.tipo === 'refi' ? `<span class="chip blue">Renovado · ${money(c.movido || 0)} pasó al préstamo nuevo</span>` : (c.pagado ? `<span class="chip green">Pagado ${fD(c.fechaPago)}</span>` : late ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>') + (chipMora(L, c) ? ' ' + chipMora(L, c) : '');
+    const est = c.tipo === 'refi' ? `<span class="chip blue">Renovado · ${money(c.movido || 0)} pasó al préstamo nuevo</span>` : (c.pagado ? `<span class="chip green">Pagado ${fx(c.fechaPago)}</span>` : late ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>') + (chipMora(L, c) ? ' ' + chipMora(L, c) : '');
     const acc = (c.tipo === 'refi' ? '' : c.tipo === 'abono' ? `<button class="btn sm" onclick="anularAbono('${L.id}','${c.id}')">Anular</button>` : c.tipo === 'interes'
       ? `<button class="btn sm" onclick="anularInteres('${L.id}','${c.id}')">Anular</button>`
       : c.pagado ? (c.cubierta ? '' : `<button class="btn sm" onclick="despagar('${L.id}','${c.id}')">Deshacer</button> <button class="btn sm" onclick="dlgCuota('${L.id}','${c.id}')">✎</button>`)
       : `<button class="btn sm pri" onclick="pagar('${L.id}','${c.id}')">Pagó</button> <button class="btn sm" onclick="dlgCuota('${L.id}','${c.id}')">✎</button>`)
       + (c.tipo === 'abono' ? '' : ` <button class="btn sm dan" onclick="borrarCuota('${L.id}','${c.id}')" title="Borrar cuota">✕</button>`);
-    return `<tr class="${c.pagado?'paid':''} ${late?'late':''}"><td>${i+1}${etiquetaTipo(c)}</td><td>${fD(c.fecha)}</td><td class="n">${num(c.capital)}</td><td class="n">${num(c.interes)}</td><td class="n"><b>${num(c.capital+c.interes)}</b></td><td>${est}</td><td style="white-space:nowrap">${acc}</td></tr>`;
+    return `<tr class="${c.pagado?'paid':''} ${late?'late':''}"><td>${i+1}${etiquetaTipo(c)}</td><td>${fx(c.fecha)}</td><td class="n">${num(c.capital)}</td><td class="n">${num(c.interes)}</td><td class="n"><b>${num(c.capital+c.interes)}</b></td><td>${est}</td><td style="white-space:nowrap">${acc}</td></tr>`;
   }).join('')}</tbody></table></div>
-  ${L.eventos?.length ? `<details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Historial del préstamo (${L.eventos.length})</summary><ul class="hint">${L.eventos.map(e=>`<li>${fD(e.f)} — ${esc(e.t)}</li>`).join('')}</ul></details>` : ''}`;
+  ${L.eventos?.length ? `<details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Historial del préstamo (${L.eventos.length})</summary><ul class="hint">${L.eventos.map(e=>`<li>${fx(e.f)} — ${esc(e.t)}</li>`).join('')}</ul></details>` : ''}`;
 }
 
 /* ---------- Nuevo préstamo / Corregir ---------- */
@@ -661,11 +688,11 @@ function avisoRiesgo(b){
   if (!c) return '';
   // En un refinanciamiento, el capital de las deudas elegidas ya está contado en lo que debe
   const nuevoRiesgo = b.tipo === 'refi' ? r2(b.capital - seleccionRefi().reduce((s, d) => s + d.cap, 0)) : b.capital;
-  const col = r2(c.ganado - c.capRiesgo), libre = Math.max(0, col);
+  const col = r2(c.ganadoTotal - c.capRiesgo), libre = Math.max(0, col);
   const punt = c.cumpl === null ? '' : ` · puntualidad ${c.cumpl}%`;
   if (nuevoRiesgo <= libre)
-    return `<div class="riesgo ok"><b>Riesgo bajo.</b> Con ${esc(c.nombre)} ya ganaste ${money(c.ganado)} de interés${c.capRiesgo ? ` y aún te debe ${money(c.capRiesgo)} de capital` : ''}: este préstamo de ${money(nuevoRiesgo)} queda cubierto por tus ganancias${punt}.</div>`;
-  return `<div class="riesgo warn"><b>Atención.</b> Con ${esc(c.nombre)} has ganado ${money(c.ganado)} de interés${c.capRiesgo ? ` y te debe ${money(c.capRiesgo)} de capital` : ''}. De este préstamo, ${money(r2(nuevoRiesgo - libre))} no está cubierto por lo ya ganado${punt}.</div>`;
+    return `<div class="riesgo ok"><b>Riesgo bajo.</b> Con ${esc(c.nombre)} ya ganaste ${money(c.ganadoTotal)} de interés${c.capRiesgo ? ` y aún te debe ${money(c.capRiesgo)} de capital` : ''}: este préstamo de ${money(nuevoRiesgo)} queda cubierto por tus ganancias${punt}.</div>`;
+  return `<div class="riesgo warn"><b>Atención.</b> Con ${esc(c.nombre)} has ganado ${money(c.ganadoTotal)} de interés${c.capRiesgo ? ` y te debe ${money(c.capRiesgo)} de capital` : ''}. De este préstamo, ${money(r2(nuevoRiesgo - libre))} no está cubierto por lo ya ganado${punt}.</div>`;
 }
 
 function listaArchivos(){
@@ -782,23 +809,29 @@ function avatar(nombre, grande){
 function datosClientes(){
   const grupos = new Map();
   for (const L of S.prestamos){ const k = claveCliente(L.cliente); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(L); }
-  return [...grupos].map(([k, ps]) => {
-    ps = ps.slice().sort(porCreacion);
-    const cs = ps.flatMap(L => L.cuotas), pend = cs.filter(c => !c.pagado), ult = ps.at(-1), ultimoDe = f => ps.map(f).filter(Boolean).at(-1);
-    return {k, prestamos:ps, nombre:ult.cliente, apodo:ultimoDe(L => L.apodo) || '', tel:ultimoDe(L => L.tel) || '', ingreso:ultimoDe(L => L.ingreso) || 0,
-      prestado:r2(ps.reduce((s, L) => s + (+L.capital || 0), 0)),
-      cobrado:r2(cs.filter(c => c.pagado).reduce((s, c) => s + c.capital + c.interes, 0)),
-      ganado:r2(cs.filter(c => c.pagado).reduce((s, c) => s + c.interes, 0)),
+  return [...grupos].map(([k, todos]) => {
+    todos = todos.slice().sort(porCreacion);
+    // Lo del año en foco: préstamos, cobros (por fecha de pago) y puntualidad (por fecha límite).
+    // Deuda, próximo pago y riesgo siempre se calculan con todo, porque son el estado de hoy.
+    const ps = todos.filter(prestamoEnAnio), cs = todos.flatMap(L => L.cuotas), pend = cs.filter(c => !c.pagado);
+    const pagadas = cs.filter(c => c.pagado && enAnio(c.fechaPago || c.fecha)), delAnio = cs.filter(c => enAnio(c.fecha));
+    const ult = todos.at(-1), ultimoDe = f => todos.map(f).filter(Boolean).at(-1);
+    return {k, prestamos:ps, todos, nombre:ult.cliente, apodo:ultimoDe(L => L.apodo) || '', tel:ultimoDe(L => L.tel) || '', ingreso:ultimoDe(L => L.ingreso) || 0,
+      prestado:r2(todos.filter(L => enAnio(L.cuotas[0]?.fecha || L.creado)).reduce((s, L) => s + (+L.capital || 0), 0)),
+      nPrestados:todos.filter(L => enAnio(L.cuotas[0]?.fecha || L.creado)).length,
+      cobrado:r2(pagadas.reduce((s, c) => s + c.capital + c.interes, 0)),
+      ganado:r2(pagadas.reduce((s, c) => s + c.interes, 0)),
+      ganadoTotal:r2(cs.filter(c => c.pagado).reduce((s, c) => s + c.interes, 0)),
       debe:r2(pend.reduce((s, c) => s + c.capital + c.interes, 0)),
-      atrasado:pend.some(c => c.fecha < hoy()), activos:ps.filter(L => pendientes(L).length).length,
-      cumpl:cumplimiento(cs), desde:ps.map(L => L.cuotas[0]?.fecha || L.creado).sort()[0],
+      atrasado:pend.some(c => c.fecha < hoy()), activos:todos.filter(L => pendientes(L).length).length,
+      cumpl:cumplimiento(delAnio), desde:todos.map(L => L.cuotas[0]?.fecha || L.creado).sort()[0],
       porCobrarInt:r2(pend.reduce((s, c) => s + c.interes, 0)),
       capRiesgo:r2(pend.reduce((s, c) => s + c.capital, 0)),
       proximas:pend.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)),
       ultimoPago:cs.filter(c => c.pagado && c.fechaPago).sort((a, b) => b.fechaPago.localeCompare(a.fechaPago))[0] || null,
-      aTiempo:cs.filter(c => c.tipo === 'normal' && c.pagado && (c.fechaPago || c.fecha) <= c.fecha).length,
-      conAtraso:cs.filter(c => (c.tipo === 'normal' && c.pagado && (c.fechaPago || c.fecha) > c.fecha) || c.tipo === 'interes' || (!c.pagado && c.fecha < hoy())).length};
-  });
+      aTiempo:delAnio.filter(c => c.tipo === 'normal' && c.pagado && (c.fechaPago || c.fecha) <= c.fecha).length,
+      conAtraso:delAnio.filter(c => (c.tipo === 'normal' && c.pagado && (c.fechaPago || c.fecha) > c.fecha) || c.tipo === 'interes' || (!c.pagado && c.fecha < hoy())).length};
+  }).filter(c => c.prestamos.length);
 }
 let clienteSel = null, filtroCli = '', ordenCli = 'deuda', listaCli = [];
 function irCliente(lid){ clienteSel = claveCliente(buscarL(lid).cliente); ir('clientes'); }
@@ -806,22 +839,22 @@ function verCliente(i){ clienteSel = listaCli[i].k; render(); window.scrollTo(0,
 /* Resumen del cliente en cajas de colores. En la lista van 4; en la ficha, 6. */
 /* Colchón: lo que ya ganó con el cliente menos el capital que aún le debe. Si es positivo,
    puede prestarle hasta ese monto sin poner en riesgo su propio dinero. */
-const colchon = c => r2(c.ganado - c.capRiesgo);
+const colchon = c => r2(c.ganadoTotal - c.capRiesgo);
 function cajasCliente(c, corto){
   const t = hoy(), sig = c.proximas[0], up = c.ultimoPago;
   const caja = (cls, l, v, sub) => `<div class="stat ${cls}"><div class="l">${l}</div><div class="v">${v}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
   const prox = sig ? caja(sig.fecha < t ? 'red' : 'violet', 'Próximo pago', fD(sig.fecha), `${money(totalHoy(sig))}${sig.fecha < t ? ` · ${daysBetween(sig.fecha, t)} días tarde` : sig.fecha === t ? ' · hoy' : ` · en ${daysBetween(t, sig.fecha)} días`}`)
     : caja('gray', 'Próximo pago', '—', 'sin cuotas pendientes');
   const debe = caja(c.atrasado ? 'red' : c.debe ? 'amber' : 'gray', 'Debe ahora', money(c.debe), c.debe ? `${money(c.porCobrarInt)} de interés` : 'sin deuda');
-  const gan = caja('green', 'Interés ganado', money(c.ganado), corto ? '' : 'ya cobrado');
-  const prest = caja('blue', 'Prestado', money(c.prestado), corto ? '' : `en ${c.prestamos.length} préstamo${c.prestamos.length > 1 ? 's' : ''}`);
-  const rec = caja('green', 'Recaudado', money(c.cobrado), `${money(c.ganado)} de interés`);
+  const gan = caja('green', 'Interés ganado' + sufAnio(), money(c.ganado), corto ? '' : 'ya cobrado');
+  const prest = caja('blue', 'Prestado' + sufAnio(), money(c.prestado), corto ? '' : `en ${c.nPrestados} préstamo${c.nPrestados !== 1 ? 's' : ''}`);
+  const rec = caja('green', 'Recaudado' + sufAnio(), money(c.cobrado), `${money(c.ganado)} de interés`);
   const col = colchon(c);
   const linea = caja(col > 0 ? 'blue' : 'gray', 'Sin riesgo hasta', col > 0 ? money(col) : 'S/ 0',
-    col > 0 ? 'cubierto por lo ganado' : c.capRiesgo ? `faltan ${money(-col)} por recuperar` : 'aún no hay ganancia');
+    col > 0 ? `ganado ${money(c.ganadoTotal)} − debe ${money(c.capRiesgo)}` : c.capRiesgo ? `faltan ${money(-col)} por recuperar` : 'aún no hay ganancia');
   if (corto) return `<div class="stats">${prox}${debe}${gan}${rec}${linea}${prest}</div>`;
   const ult = up ? caja('gray', 'Último pago', fD(up.fechaPago), money(up.capital + up.interes)) : caja('gray', 'Último pago', '—', 'aún no paga');
-  const punt = caja(c.cumpl === null ? 'gray' : c.cumpl >= 90 ? 'green' : c.cumpl >= 60 ? 'amber' : 'red', 'Puntualidad', c.cumpl === null ? '—' : c.cumpl + '%', `${c.aTiempo} a tiempo · ${c.conAtraso} con atraso`);
+  const punt = caja(c.cumpl === null ? 'gray' : c.cumpl >= 90 ? 'green' : c.cumpl >= 60 ? 'amber' : 'red', 'Puntualidad' + sufAnio(), c.cumpl === null ? '—' : c.cumpl + '%', `${c.aTiempo} a tiempo · ${c.conAtraso} con atraso`);
   return `<div class="stats">${prox}${debe}${rec}${linea}${gan}${prest}${ult}${punt}</div>`;
 }
 function chipCliente(c){ return c.debe ? (c.atrasado ? '<span class="chip red">Atrasado</span>' : '<span class="chip blue">Debe</span>') : '<span class="chip green">Sin deuda</span>'; }
@@ -836,8 +869,8 @@ function vClientes(){
   app.innerHTML = `<div class="kpis">
     <div class="kpi"><div class="l">Clientes</div><div class="v">${todos.length}</div><div class="s">${todos.filter(c => c.activos).length} con deuda activa</div></div>
     <div class="kpi"><div class="l">Te deben ahora</div><div class="v">${money(suma('debe'))}</div><div class="s">${todos.filter(c => c.atrasado).length} con atraso</div></div>
-    <div class="kpi"><div class="l">Recaudado en total</div><div class="v">${money(suma('cobrado'))}</div><div class="s">capital + interés cobrado</div></div>
-    <div class="kpi"><div class="l">Ganancia total</div><div class="v" style="color:var(--brand)">${money(suma('ganado'))}</div><div class="s">interés cobrado</div></div>
+    <div class="kpi"><div class="l">Recaudado${sufAnio() || ' en total'}</div><div class="v">${money(suma('cobrado'))}</div><div class="s">capital + interés cobrado</div></div>
+    <div class="kpi"><div class="l">Ganancia${sufAnio() || ' total'}</div><div class="v" style="color:var(--brand)">${money(suma('ganado'))}</div><div class="s">interés cobrado</div></div>
   </div>
   <div class="toolbar"><input id="buscarCli" placeholder="Buscar cliente o apodo…" value="${esc(filtroCli)}">
     <select id="ordenCli" style="max-width:200px">${[['deuda','Más deuda primero'],['az','Nombre (A–Z)'],['recaudado','Más recaudado'],['ganado','Más interés pagado'],['riesgo','Menor riesgo'],['prestado','Más prestado'],['cumpl','Mejor cumplimiento']]
@@ -869,17 +902,17 @@ function vCliente(k){
   ${cajasCliente(c, false)}
   ${c.proximas.length ? `<div class="card" style="padding:12px 14px;margin-top:8px"><div class="l hint" style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em">Próximas fechas de pago</div>
     <div class="fechas">${c.proximas.map(q => `<span class="${q.fecha < hoy() ? 'late' : ''}">${fD(q.fecha)} · <b>${money(totalHoy(q))}</b></span>`).join('')}</div></div>` : ''}
-  <h2>Historial de préstamos</h2>
+  <h2>Historial de préstamos <small>· ${anioFoco === 'todos' ? 'todos los años' : `${anioFoco} (cambia el año arriba)`}</small></h2>
   ${ps.map(L => {
-    const e = estadoPrestamo(L), t = hoy(), ini = L.cuotas[0]?.fecha, fin = L.cuotas.at(-1)?.fecha;
+    const fx = fechaFmt(L.cuotas), e = estadoPrestamo(L), t = hoy(), ini = L.cuotas[0]?.fecha, fin = L.cuotas.at(-1)?.fecha;
     return `<div class="card tl">
       <div class="hd"><div><b>${etiqueta(L).n ? `${textoEtq(L)} · ` : ''}${ini ? nombreMes(ini.slice(0,7)) : ''}${fin && fin.slice(0,7) !== ini?.slice(0,7) ? ' → ' + nombreMes(fin.slice(0,7)) : ''}</b>
         <div class="hint">${money(L.capital)}${L.modo === 'pct' ? ` al ${num(L.valor)}%` : ''} · ${L.cuotas.length} cuota${L.cuotas.length > 1 ? 's' : ''}</div></div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="chip ${e.cls}">${e.t}</span>${chipCumpl(cumplimiento(L.cuotas))}</div></div>
       <div class="formula">${esc(L.formula).replace(/\n/g,'<br>')}</div>
-      <div class="tblwrap"><table><tbody>${L.cuotas.map((q, i) => `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t ? 'late' : ''}"><td>${i+1}${etiquetaTipo(q)}</td><td>${fD(q.fecha)}</td>
+      <div class="tblwrap"><table><tbody>${L.cuotas.map((q, i) => `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t ? 'late' : ''}"><td>${i+1}${etiquetaTipo(q)}</td><td>${fx(q.fecha)}</td>
         <td class="n">${num(q.capital)} + ${num(q.interes)}</td><td class="n"><b>${num(q.capital + q.interes)}</b></td>
-        <td>${q.tipo === 'refi' ? `<span class="chip blue">Renovado · ${money(q.movido || 0)}</span>` : q.pagado ? `<span class="chip green">Pagado ${fD(q.fechaPago)}</span>` : q.fecha < t ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>'}</td>
+        <td>${q.tipo === 'refi' ? `<span class="chip blue">Renovado · ${money(q.movido || 0)}</span>` : q.pagado ? `<span class="chip green">Pagado ${fx(q.fechaPago)}</span>` : q.fecha < t ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>'}</td>
         <td style="white-space:nowrap;text-align:right">${q.tipo === 'refi' ? '' : q.tipo === 'abono' ? `<button class="btn sm" onclick="anularAbono('${L.id}','${q.id}')">Anular</button>`
           : `<button class="btn sm" onclick="dlgCuota('${L.id}','${q.id}')" title="Editar">✎</button> <button class="btn sm dan" onclick="borrarCuota('${L.id}','${q.id}')" title="Borrar">✕</button>`}</td></tr>`).join('')}</tbody></table></div>
       ${L.nota ? `<div class="hint" style="margin-top:8px">Nota: ${esc(L.nota)}</div>` : ''}
