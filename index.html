@@ -164,6 +164,11 @@ table.edit input[type=date]{width:140px}
 .cli .stats{grid-template-columns:repeat(4,1fr);gap:6px}
 .cli .stat{padding:8px 10px}
 .cli .stat .v{font-size:15px}
+.refi-list{display:flex;flex-direction:column;gap:6px;margin-top:10px;max-height:340px;overflow:auto}
+.refi-item{display:flex;flex-direction:row;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:10px;cursor:pointer;color:var(--ink);font-weight:500}
+.refi-item.on{border-color:var(--brand);background:var(--brand-soft)}
+.refi-item input{width:auto;flex:none}
+.refi-item .hint{font-weight:400}
 .fechas{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .fechas span{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:12px;font-variant-numeric:tabular-nums}
 .fechas span.late{border-color:var(--red);color:var(--red)}
@@ -333,7 +338,7 @@ function posicion(L, c){ return (L.cuotas.indexOf(c)+1) + '/' + L.cuotas.length;
 function extrasInteres(L){ return L.cuotas.filter(c => c.tipo === 'interes').length; }
 function estadoPrestamo(L){
   const p = pendientes(L);
-  if (!p.length) return {t:'Pagado', cls:'green'};
+  if (!p.length) return L.refinanciadoEn ? {t:'Renovado', cls:'blue'} : {t:'Pagado', cls:'green'};
   if (p[0].fecha < hoy()) return {t:'Atrasado', cls:'red'};
   return {t:'Al día', cls:'blue'};
 }
@@ -360,7 +365,7 @@ function chipMora(L, c){
    completas y a tiempo. Un mes de "solo interés" cuenta como no cumplido. */
 function cumplimiento(cuotas){
   const t = hoy();
-  const evaluadas = cuotas.filter(c => c.tipo === 'interes' || c.pagado || c.fecha < t);
+  const evaluadas = cuotas.filter(c => c.tipo !== 'refi' && (c.tipo === 'interes' || c.pagado || c.fecha < t));
   if (!evaluadas.length) return null;
   const ok = evaluadas.filter(c => c.tipo === 'normal' && c.pagado && (c.fechaPago || c.fecha) <= c.fecha).length;
   return Math.round(ok / evaluadas.length * 100);
@@ -472,7 +477,7 @@ function tarjeta(L){
       <button class="btn" onclick="toggle('${L.id}')">${abierto ? 'Ocultar' : 'Ver cuotas'}${nAdj ? ` · ${nAdj} archivo${nAdj > 1 ? 's' : ''}` : ''}</button>
       <button class="btn wa" onclick="enviarEstado('${L.id}')">Enviar estado</button>
       <button class="btn" onclick="corregir('${L.id}')">Corregir</button>
-      ${pend.length ? `<button class="btn warn" onclick="dlgRefinanciar('${L.id}')">Refinanciar</button>` : ''}
+      ${pend.length ? `<button class="btn warn" onclick="refinanciar('${L.id}')">Refinanciar</button>` : ''}
       <button class="btn dan" onclick="eliminar('${L.id}')">Eliminar</button>
     </div>
     ${abierto ? tablaCuotas(L) + panelAdjuntos(L) : ''}
@@ -485,8 +490,8 @@ function tablaCuotas(L){
   return `<div class="tblwrap" style="margin-top:12px"><table><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Cap.</th><th class="n">Int.</th><th class="n">Total</th><th>Estado</th><th></th></tr></thead><tbody>
   ${L.cuotas.map((c,i) => {
     const late = !c.pagado && c.fecha < t;
-    const est = (c.pagado ? `<span class="chip green">Pagado ${fD(c.fechaPago)}</span>` : late ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>') + (chipMora(L, c) ? ' ' + chipMora(L, c) : '');
-    const acc = c.tipo === 'interes'
+    const est = c.tipo === 'refi' ? `<span class="chip blue">Renovado · ${money(c.movido || 0)} pasó al préstamo nuevo</span>` : (c.pagado ? `<span class="chip green">Pagado ${fD(c.fechaPago)}</span>` : late ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>') + (chipMora(L, c) ? ' ' + chipMora(L, c) : '');
+    const acc = c.tipo === 'refi' ? '' : c.tipo === 'interes'
       ? `<button class="btn sm" onclick="anularInteres('${L.id}','${c.id}')">Anular</button>`
       : c.pagado ? `<button class="btn sm" onclick="despagar('${L.id}','${c.id}')">Deshacer</button> <button class="btn sm" onclick="dlgCuota('${L.id}','${c.id}')">✎</button>`
       : `<button class="btn sm pri" onclick="pagar('${L.id}','${c.id}')">Pagó</button> <button class="btn sm" onclick="dlgCuota('${L.id}','${c.id}')">✎</button>`;
@@ -498,19 +503,22 @@ function tablaCuotas(L){
 /* ---------- Nuevo préstamo / Corregir ---------- */
 const ACCEPT = 'image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx';
 const nuevoBorrador = () => ({cliente:'', apodo:'', tel:'', ingreso:'', capital:1000, modo:'pct', valor:16, meses:2, primera:addMonths(hoy(),1), pagadas:0, nota:'',
-  personalizado:false, filas:null, editId:null, archivos:[]});
+  personalizado:false, filas:null, editId:null, archivos:[], tipo:'nuevo', refi:{ids:[], interes:null, abono:0, q:''}, clienteAuto:true});
 let borrador = nuevoBorrador();
 const generarFilas = () => crearPrestamo({...borrador, cliente:'-', filas:null}).cuotas.map(c => ({fecha:c.fecha, capital:c.capital, interes:c.interes, tipo:'normal', pagado:c.pagado, fechaPago:c.fechaPago}));
 
 function vNuevo(){
   const b = borrador, L0 = b.editId && buscarL(b.editId);
-  app.innerHTML = `<h2>${L0 ? `Corregir préstamo de ${esc(L0.cliente)}` : 'Nuevo préstamo <small>· también sirve como calculadora</small>'}</h2>
+  const refi = !L0 && b.tipo === 'refi';
+  app.innerHTML = `<h2>${L0 ? `Corregir préstamo de ${esc(L0.cliente)}` : refi ? 'Refinanciar / juntar deudas' : 'Nuevo préstamo <small>· también sirve como calculadora</small>'}</h2>
+  ${L0 ? '' : `<div class="seg"><button class="${refi ? '' : 'on'}" onclick="cambiarTipo('nuevo')">Préstamo nuevo</button><button class="${refi ? 'on' : ''}" onclick="cambiarTipo('refi')">Refinanciar / juntar deudas</button></div>`}
+  ${refi ? panelRefi() : ''}
   <div class="card"><div class="form" id="fNuevo">
     <label>Cliente<input name="cliente" value="${esc(b.cliente)}" placeholder="Nombre" required></label>
     <label>Apodo<input name="apodo" value="${esc(b.apodo)}" placeholder="Opcional"></label>
     <label>Teléfono (WhatsApp)<input name="tel" value="${esc(b.tel)}" placeholder="9XX XXX XXX" inputmode="tel"></label>
     <label>Cuánto gana al mes (S/)<input name="ingreso" type="number" min="0" step="any" value="${b.ingreso || ''}" placeholder="Opcional"></label>
-    <label>Capital prestado (S/)<input name="capital" type="number" min="1" step="any" value="${b.capital}"></label>
+    <label>${refi ? 'Capital del nuevo préstamo (S/)' : 'Capital prestado (S/)'}<input name="capital" type="number" min="1" step="any" value="${b.capital}" ${refi ? 'readonly title="Es la suma de las deudas elegidas"' : ''}></label>
     <label>Tipo de interés<select name="modo">
       <option value="pct" ${b.modo==='pct'?'selected':''}>% sobre el capital (total)</option>
       <option value="fijo" ${b.modo==='fijo'?'selected':''}>Monto fijo total (S/)</option>
@@ -525,13 +533,98 @@ function vNuevo(){
   </div><div class="preview" id="prev"></div>
   <div style="padding:0 16px 16px;display:flex;justify-content:flex-end;gap:8px">
     ${L0 ? `<button class="btn" onclick="borrador=nuevoBorrador();ir('prestamos')">Cancelar</button>` : `<button class="btn" onclick="borrador=nuevoBorrador();vNuevo()">Limpiar</button>`}
-    <button class="btn pri" onclick="guardarNuevo()">${L0 ? 'Guardar corrección' : 'Guardar préstamo'}</button></div></div>`;
+    <button class="btn pri" onclick="guardarNuevo()">${L0 ? 'Guardar corrección' : refi ? 'Guardar refinanciamiento' : 'Guardar préstamo'}</button></div></div>`;
   const f = document.getElementById('fNuevo');
-  f.oninput = e => { if (e.target.id !== 'inArch') { leerBorrador(); previa(); } };
+  f.oninput = e => { if (e.target.id !== 'inArch') { if (e.target.name === 'cliente') borrador.clienteAuto = false; leerBorrador(); previa(); } };
+  if (refi) activarRefi();
   const inA = document.getElementById('inArch');
   if (inA) inA.onchange = () => { borrador.archivos.push(...inA.files); inA.value = ''; listaArchivos(); };
   listaArchivos(); previa();
 }
+/* ---- Refinanciar / juntar deudas ---- */
+function deudasPendientes(){
+  const t = hoy();
+  return S.prestamos.filter(L => pendientes(L).length).map(L => {
+    const pend = pendientes(L), venc = pend.filter(c => c.fecha <= t);
+    return {L, cap:r2(pend.reduce((s, c) => s + c.capital, 0)), intPend:r2(pend.reduce((s, c) => s + c.interes, 0)),
+      intVenc:r2(venc.reduce((s, c) => s + c.interes + moraDe(c), 0)), desde:pend[0].fecha};
+  }).sort((a, b) => a.L.cliente.localeCompare(b.L.cliente) || a.desde.localeCompare(b.desde));
+}
+function seleccionRefi(){ const ids = new Set(borrador.refi.ids); return deudasPendientes().filter(d => ids.has(d.L.id)); }
+const interesRefi = () => borrador.refi.interes ?? r2(seleccionRefi().reduce((s, d) => s + d.intVenc, 0));
+const baseRefi = () => r2(seleccionRefi().reduce((s, d) => s + d.cap, 0) + interesRefi() - (+borrador.refi.abono || 0));
+function extraRefi(){
+  const sel = seleccionRefi(), int = interesRefi(), ab = +borrador.refi.abono || 0;
+  return sel.map(d => `${num(d.cap)}cap`).join('+') + (int ? `+${num(int)}int` : '') + (ab ? `-${num(ab)}` : '') + `=${num(baseRefi())}`;
+}
+function panelRefi(){
+  const r = borrador.refi, ids = new Set(r.ids), q = (r.q || '').toLowerCase();
+  const ds = deudasPendientes().filter(d => ids.has(d.L.id) || !q || d.L.cliente.toLowerCase().includes(q) || (d.L.apodo || '').toLowerCase().includes(q));
+  return `<div class="card" style="padding:14px;margin-bottom:12px" id="refiPanel">
+    <div style="font-weight:700">1. Elige las deudas que entran en el nuevo préstamo</div>
+    <div class="hint">Pueden ser de una o varias personas (por ejemplo, una pareja). Sus cuotas pendientes se cierran y todo pasa a este préstamo.</div>
+    <input id="refiBuscar" placeholder="Buscar cliente…" value="${esc(r.q || '')}" style="margin-top:10px">
+    <div class="refi-list">${ds.map(d => `<label class="refi-item ${ids.has(d.L.id) ? 'on' : ''}"><input type="checkbox" data-id="${d.L.id}" ${ids.has(d.L.id) ? 'checked' : ''}>${avatar(d.L.cliente)}
+      <div style="min-width:0"><b>${esc(d.L.cliente)}</b> <span class="hint">${esc(d.L.formula.split('\n')[0])}</span>
+        <div class="hint">Debe ${money(d.cap)} de capital${d.intVenc ? ` · ${money(d.intVenc)} de interés vencido` : ''} · pendiente desde ${fD(d.desde)}</div></div></label>`).join('')
+      || '<div class="empty">No hay deudas pendientes' + (q ? ' con ese nombre' : '') + '.</div>'}</div>
+    <div style="font-weight:700;margin-top:14px">2. Ajusta lo que se suma y lo que se descuenta</div>
+    <div class="form" style="padding:8px 0 0">
+      <label>Interés no pagado que se suma (S/)<input id="refiInt" type="number" min="0" step="any" value="${interesRefi()}"><span class="hint" style="font-weight:400">Por defecto: interés y mora de las cuotas ya vencidas</span></label>
+      <label>Abono o descuento que se resta (S/)<input id="refiAbono" type="number" min="0" step="any" value="${r.abono || 0}"></label>
+    </div>
+    <div class="formula" id="refiSuma" style="margin-bottom:0"></div>
+    <div style="font-weight:700;margin-top:14px">3. Define el nuevo préstamo abajo</div>
+  </div>`;
+}
+function activarRefi(){
+  const p = document.getElementById('refiPanel'), r = borrador.refi;
+  const sumar = () => {
+    const sel = seleccionRefi();
+    document.getElementById('refiSuma').innerHTML = sel.length
+      ? `${esc(extraRefi()).replace(/=/, ' = ')}<br><span class="hint">Nuevo capital: <b>${money(baseRefi())}</b>${sel.length > 1 ? ` · junta ${sel.length} deudas` : ''}</span>`
+      : '<span class="hint">Marca al menos una deuda.</span>';
+    const cap = document.querySelector('#fNuevo [name=capital]'); cap.value = baseRefi();
+    leerBorrador(); previa();
+  };
+  p.onchange = e => {
+    if (!e.target.dataset.id) return;
+    leerCampos();
+    const id = e.target.dataset.id;
+    r.ids = e.target.checked ? [...r.ids, id] : r.ids.filter(x => x !== id);
+    r.interes = null;   // vuelve a calcular el interés vencido de lo elegido
+    const sel = seleccionRefi();
+    if (borrador.clienteAuto && sel.length){
+      const nombres = [...new Set(sel.map(d => d.L.cliente))];
+      Object.assign(borrador, {cliente:nombres.length > 1 ? nombres.slice(0, -1).join(', ') + ' y ' + nombres.at(-1) : nombres[0],
+        tel:sel.map(d => d.L.tel).find(Boolean) || borrador.tel, apodo:nombres.length > 1 ? '' : (sel[0].L.apodo || borrador.apodo)});
+    }
+    vNuevo();
+  };
+  p.oninput = e => {
+    if (e.target.id === 'refiBuscar'){ r.q = e.target.value; const pos = e.target.selectionStart; leerCampos(); vNuevo(); const nb = document.getElementById('refiBuscar'); nb.focus(); nb.setSelectionRange(pos, pos); return; }
+    if (e.target.id === 'refiInt') r.interes = e.target.value === '' ? null : Math.max(0, +e.target.value || 0);
+    if (e.target.id === 'refiAbono') r.abono = Math.max(0, +e.target.value || 0);
+    sumar();
+  };
+  sumar();
+}
+// Guarda lo escrito en el formulario antes de volver a dibujar la pantalla (sin perder nombre, interés, etc.)
+function leerCampos(){ if (document.getElementById('fNuevo')) leerBorrador(); }
+function cambiarTipo(t){
+  leerCampos();
+  borrador.tipo = t;
+  if (t === 'refi'){ borrador.clienteAuto = !borrador.cliente.trim(); if (borrador.modo === 'pct' && borrador.valor === 16) Object.assign(borrador, {modo:'mes', valor:25}); }
+  else borrador.capital = borrador.capital || 1000;
+  vNuevo();
+}
+function refinanciar(lid){
+  const L = buscarL(lid);
+  borrador = {...nuevoBorrador(), tipo:'refi', cliente:L.cliente, apodo:L.apodo || '', tel:L.tel || '', ingreso:L.ingreso || '', clienteAuto:true,
+    modo:'mes', valor:25, meses:Math.max(1, pendientes(L).length), primera:addMonths(hoy(), 1, L.dia), refi:{ids:[lid], interes:null, abono:0, q:''}};
+  vista = 'nuevo'; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === 'nuevo')); render(); window.scrollTo(0,0);
+}
+
 function listaArchivos(){
   const el = document.getElementById('listaArch'); if (!el) return;
   el.innerHTML = borrador.archivos.map((a,i) => `<div>${esc(a.name)} <span class="hint">(${tamano(a.size)})</span> <button class="btn sm dan" type="button" onclick="borrador.archivos.splice(${i},1);listaArchivos()">✕</button></div>`).join('');
@@ -542,6 +635,7 @@ function leerBorrador(){
   const pers = f.querySelector('[name=personalizado]').checked;
   Object.assign(borrador, {cliente:v('cliente'), apodo:v('apodo'), tel:v('tel'), ingreso:+v('ingreso')||0, capital:+v('capital')||0, modo:v('modo'), valor:+v('valor')||0,
     meses:Math.max(1,parseInt(v('meses'))||1), primera:v('primera')||hoy(), pagadas:Math.max(0,parseInt(v('pagadas'))||0), nota:v('nota'), personalizado:pers});
+  if (borrador.tipo === 'refi' && !borrador.editId) borrador.capital = baseRefi();
   if (pers && !borrador.filas) borrador.filas = generarFilas();
   if (!pers) borrador.filas = null;
 }
@@ -606,13 +700,27 @@ async function guardarNuevo(){
   if (!borrador.capital) { toast('Escribe el capital'); return; }
   if (borrador.personalizado && !borrador.filas.length) { toast('Agrega al menos una cuota'); return; }
   if (borrador.filas?.some(f => !f.fecha)) { toast('Falta la fecha de alguna cuota'); return; }
-  const nuevo = crearPrestamo(borrador), archivos = borrador.archivos, snap = snapshot();
+  const esRefi = borrador.tipo === 'refi' && !borrador.editId, viejos = esRefi ? seleccionRefi() : [];
+  if (esRefi && !viejos.length) { toast('Marca al menos una deuda para refinanciar'); return; }
+  if (esRefi && borrador.capital <= 0) { toast('El total a refinanciar debe ser mayor que 0'); return; }
+  const nuevo = crearPrestamo({...borrador, extra:esRefi ? extraRefi() : undefined}), archivos = borrador.archivos, snap = snapshot();
+  if (esRefi){
+    nuevo.refinancia = viejos.map(d => d.L.id);
+    nuevo.nota = `Refinanciamiento de: ${viejos.map(d => `${d.L.cliente} (${money(d.cap)} de capital)`).join(', ')}.` + (nuevo.nota ? ' ' + nuevo.nota : '');
+    nuevo.eventos.push({f:hoy(), t:`Refinanciamiento: ${extraRefi()}`});
+    for (const {L:v, cap} of viejos){
+      v.cuotas = v.cuotas.filter(c => c.pagado);
+      v.cuotas.push({id:uid(), fecha:hoy(), capital:0, interes:0, tipo:'refi', pagado:true, fechaPago:hoy(), movido:cap});
+      v.refinanciadoEn = nuevo.id;
+      v.eventos.push({f:hoy(), t:`Renovado: ${money(cap)} de capital pasó al préstamo nuevo de ${nuevo.cliente}`});
+    }
+  }
   let L, msg;
   if (borrador.editId){
     L = buscarL(borrador.editId);
     Object.assign(L, {...nuevo, id:L.id, creado:L.creado, adjuntos:L.adjuntos || [], eventos:[...L.eventos, {f:hoy(), t:'Préstamo corregido'}]});
     msg = 'Préstamo corregido';
-  } else { L = nuevo; S.prestamos.push(L); msg = 'Préstamo guardado'; }
+  } else { L = nuevo; S.prestamos.push(L); msg = esRefi ? `Refinanciamiento guardado (${viejos.length} deuda${viejos.length > 1 ? 's' : ''} juntada${viejos.length > 1 ? 's' : ''})` : 'Préstamo guardado'; }
   borrador = nuevoBorrador(); abiertos.add(L.id);
   ir('prestamos'); save(); toast(msg, snap);
   if (archivos.length) await subirAdjuntos(L.id, archivos);
@@ -719,7 +827,7 @@ function vCliente(k){
       <div class="formula">${esc(L.formula).replace(/\n/g,'<br>')}</div>
       <div class="tblwrap"><table><tbody>${L.cuotas.map((q, i) => `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t ? 'late' : ''}"><td>${i+1}${q.tipo === 'interes' ? ' <span class="chip amber">solo int.</span>' : ''}</td><td>${fD(q.fecha)}</td>
         <td class="n">${num(q.capital)} + ${num(q.interes)}</td><td class="n"><b>${num(q.capital + q.interes)}</b></td>
-        <td>${q.pagado ? `<span class="chip green">Pagado ${fD(q.fechaPago)}</span>` : q.fecha < t ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>'}</td></tr>`).join('')}</tbody></table></div>
+        <td>${q.tipo === 'refi' ? `<span class="chip blue">Renovado · ${money(q.movido || 0)}</span>` : q.pagado ? `<span class="chip green">Pagado ${fD(q.fechaPago)}</span>` : q.fecha < t ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>'}</td></tr>`).join('')}</tbody></table></div>
       ${L.nota ? `<div class="hint" style="margin-top:8px">Nota: ${esc(L.nota)}</div>` : ''}
       <div class="acts" style="margin-top:10px"><button class="btn sm" onclick="abrirPrestamo('${L.id}')">Abrir en Préstamos</button></div>
     </div>`;
@@ -736,12 +844,12 @@ function abrirPrestamo(lid){ const L = buscarL(lid); filtro = L.cliente; abierto
 let mesSel = hoy().slice(0,7), filtroMes = 'todos';
 function moverMes(k){ mesSel = addMonths(mesSel + '-01', k).slice(0,7); render(); }
 function filaMes(L, c){
-  const t = hoy(), st = c.pagado ? (c.tipo === 'interes' ? 'int' : 'ok') : c.fecha < t ? 'late' : 'pend';
+  const t = hoy(), st = c.tipo === 'refi' ? 'refi' : c.pagado ? (c.tipo === 'interes' ? 'int' : 'ok') : c.fecha < t ? 'late' : 'pend';
   const chip = {ok:`<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span>`, int:`<span class="chip amber">✓ Solo interés ${fD(c.fechaPago)}</span>`,
-    late:`<span class="chip red">Atrasado ${daysBetween(c.fecha, t)} d</span>`, pend:'<span class="chip gray">Pendiente</span>'}[st];
+    late:`<span class="chip red">Atrasado ${daysBetween(c.fecha, t)} d</span>`, pend:'<span class="chip gray">Pendiente</span>', refi:'<span class="chip blue">Renovado</span>'}[st];
   return `<div class="row mrow st-${st}">${avatar(L.cliente)}
     <div class="who"><b class="link" onclick="irCliente('${L.id}')">${esc(L.cliente)}</b>${L.modo === 'pct' ? ` <span class="hint">(${num(L.valor)}%)</span>` : ''} <span class="chip gray">${posicion(L, c)}</span>
-      <div class="nota-l">${c.tipo === 'interes' ? `solo interés ${num(c.interes)}` : `${num(c.capital)} - ${num(c.interes)}`} <span class="hint">(${fD(c.fecha)})</span> = <b>${num(c.capital + c.interes)}</b></div>
+      <div class="nota-l">${c.tipo === 'refi' ? `renovado: ${num(c.movido || 0)} pasó a un préstamo nuevo` : `${c.tipo === 'interes' ? `solo interés ${num(c.interes)}` : `${num(c.capital)} - ${num(c.interes)}`} <span class="hint">(${fD(c.fecha)})</span> = <b>${num(c.capital + c.interes)}</b>`}</div>
       ${L.nota ? `<div class="meta">${esc(L.nota.length > 150 ? L.nota.slice(0, 150) + '…' : L.nota)}</div>` : ''}</div>
     <div class="acts" style="align-items:center">${chip}${chipMora(L, c)}${!c.pagado ? `<button class="btn sm pri" onclick="pagar('${L.id}','${c.id}')">✓ Pagó</button>` : ''}</div></div>`;
 }
@@ -975,7 +1083,7 @@ function construirExcel(){
       wa = {f:`HYPERLINK(${xlText(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`)},"WhatsApp")`, v:'WhatsApp', s:7};
     }
     cuotas.push([
-      {v:num.get(L), s:11}, {v:L.cliente, s:4}, {v:posicion(L, c), s:4}, {v:c.tipo === 'interes' ? 'Solo interés' : 'Normal', s:4},
+      {v:num.get(L), s:11}, {v:L.cliente, s:4}, {v:posicion(L, c), s:4}, {v:c.tipo === 'interes' ? 'Solo interés' : c.tipo === 'refi' ? 'Renovado' : 'Normal', s:4},
       {v:serial(c.fecha), s:3}, {v:c.capital, s:2}, {v:c.interes, s:2},
       {f:`F${r}+G${r}`, v:tot, s:2},
       {v:c.pagado ? 'Pagado' : 'Pendiente', s:4}, c.fechaPago ? {v:serial(c.fechaPago), s:3} : {v:'', s:3},
@@ -1150,7 +1258,7 @@ const b64u = {
 };
 function datosEstado(nombre){
   const ps = prestamosDe(nombre), activos = ps.filter(x => pendientes(x).length), lista = activos.length ? activos : ps.slice(-1);
-  return {n:ps[0]?.cliente || nombre, p:lista.map(x => x.cuotas.map(c => [c.fecha, c.capital, c.interes, c.tipo === 'interes' ? 1 : 0, c.pagado ? (c.fechaPago || c.fecha) : 0]))};
+  return {n:ps[0]?.cliente || nombre, p:lista.map(x => x.cuotas.map(c => [c.fecha, c.capital, c.interes, c.tipo === 'interes' ? 1 : c.tipo === 'refi' ? 2 : 0, c.pagado ? (c.fechaPago || c.fecha) : 0]))};
 }
 function enlaceEstado(L){
   return location.origin + location.pathname + '#estado=' + b64u.enc(JSON.stringify({...datosEstado(L.cliente), g:hoy()}));
@@ -1200,7 +1308,7 @@ function pintarEstado(d, vivo){
   document.title = 'Belu Bank · Estado de cuenta';
   const t = hoy(), MESL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   const largo = s => { const p = P(s); return `${p.d} de ${MESL[p.m-1]} de ${p.y}`; };
-  const ps = d.p.map(cs => cs.map(([fecha, capital, interes, ti, fp]) => ({fecha, capital, interes, tipo:ti ? 'interes' : 'normal', pagado:!!fp, fechaPago:fp || null})));
+  const ps = d.p.map(cs => cs.map(([fecha, capital, interes, ti, fp]) => ({fecha, capital, interes, tipo:ti === 2 ? 'refi' : ti ? 'interes' : 'normal', pagado:!!fp, fechaPago:fp || null})));
   app.innerHTML = `<h2 style="font-size:20px;margin-top:8px">Hola, ${esc(d.n)} </h2>
   <p class="hint">${vivo ? `Estado de tu cuenta, actualizado al <b>${largo(d.g)}</b>. Esta página se actualiza sola cuando se registra un pago.` : `Este es el estado de tu cuenta al <b>${largo(d.g)}</b>. Si pagaste después de esa fecha, pide un enlace actualizado.`}</p>
   ${ps.map((cs, i) => {
@@ -1216,7 +1324,7 @@ function pintarEstado(d, vivo){
       <div class="nums"><span>Pagado <b>${money(pagado)}</b></span><span>Falta <b>${money(total - pagado)}</b></span></div>
       <div class="tblwrap" style="margin-top:12px"><table><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Monto</th><th>Estado</th></tr></thead><tbody>
       ${cs.map((c,j) => `<tr class="${c.pagado ? 'paid' : ''} ${!c.pagado && c.fecha < t ? 'late' : ''}"><td>${j+1}${c.tipo === 'interes' ? ' <span class="chip amber">solo interés</span>' : ''}</td><td>${fD(c.fecha)}</td><td class="n"><b>${num(c.capital + c.interes)}</b></td>
-        <td>${c.pagado ? `<span class="chip green">Pagado ${fD(c.fechaPago)}</span>` : c.fecha < t ? '<span class="chip red">Vencida</span>' : '<span class="chip gray">Pendiente</span>'}</td></tr>`).join('')}
+        <td>${c.tipo === 'refi' ? '<span class="chip blue">Renovado</span>' : c.pagado ? `<span class="chip green">Pagado ${fD(c.fechaPago)}</span>` : c.fecha < t ? '<span class="chip red">Vencida</span>' : '<span class="chip gray">Pendiente</span>'}</td></tr>`).join('')}
       </tbody></table></div></div>`;
   }).join('')}
   <div class="foot">Belu Bank · Esta página muestra solo tu información.</div>`;
@@ -1532,39 +1640,6 @@ function dlgCuota(lid, cid){
     ${c.pagado ? `<label>Fecha en que pagó<input name="fp" type="date" value="${c.fechaPago || c.fecha}"></label>` : ''}</div>`,
     b => { const s = snapshot(); c.fecha = val(b,'f') || c.fecha; c.capital = +val(b,'c')||0; c.interes = +val(b,'i')||0; if (c.pagado) c.fechaPago = val(b,'fp') || c.fechaPago;
       L.cuotas.sort((a,b)=>a.fecha.localeCompare(b.fecha)); L.eventos.push({f:hoy(), t:'Se editó una cuota manualmente'}); save(); toast('Cuota actualizada', s); });
-}
-
-function dlgRefinanciar(lid){
-  const L = buscarL(lid), pend = pendientes(L);
-  const capPend = r2(pend.reduce((s,c)=>s+c.capital,0)), intPend = r2(pend.reduce((s,c)=>s+c.interes,0));
-  const prox = pend[0].fecha < hoy() ? addMonths(hoy(),1,L.dia) : pend[0].fecha;
-  dialogo(`Refinanciar a ${L.cliente}`, `<div class="form">
-    <label>Capital pendiente<input name="cap" type="number" step="any" value="${capPend}"></label>
-    <label>Interés no pagado que se suma<input name="ia" type="number" step="any" value="${intPend}"></label>
-    <label>Abono / descuento (se resta)<input name="ab" type="number" step="any" value="0"></label>
-    <label>Nuevos meses<input name="m" type="number" min="1" step="1" value="${pend.length}"></label>
-    <label>Nuevo interés<select name="mo"><option value="mes">Monto fijo por mes (S/)</option><option value="fijo">Monto fijo total (S/)</option><option value="pct">% sobre la nueva base</option></select></label>
-    <label>Valor<input name="v" type="number" step="any" value="25"></label>
-    <label>Primera fecha límite<input name="f" type="date" value="${prox}"></label>
-    <div class="full" id="rprev"></div></div>`,
-    b => {
-      const o = leerRefi(b); if (!o) return;
-      L.cuotas = L.cuotas.filter(c => c.pagado);
-      const nuevo = crearPrestamo({cliente:L.cliente, capital:o.base, modo:o.modo, valor:o.valor, meses:o.meses, primera:o.primera, extra:o.extra});
-      L.cuotas.push(...nuevo.cuotas); L.dia = nuevo.dia; L.formula = nuevo.formula;
-      L.eventos.push({f:hoy(), t:`Refinanciado: ${o.extra}, ${o.meses} meses`});
-      save(); toast(`${L.cliente} refinanciado`);
-    }, 'Refinanciar', b => {
-      const o = leerRefi(b), el = b.querySelector('#rprev');
-      if (!o) { el.innerHTML = ''; return; }
-      const n = crearPrestamo({cliente:'x', capital:o.base, modo:o.modo, valor:o.valor, meses:o.meses, primera:o.primera, extra:o.extra});
-      el.innerHTML = `<div class="formula" style="margin:0">${esc(n.formula).replace(/\n/g,'<br>')} (${fD(n.cuotas[0].fecha)})</div><p class="hint">Las cuotas pendientes actuales se reemplazan; los pagos ya hechos se conservan.</p>`;
-    });
-}
-function leerRefi(b){
-  const cap = +val(b,'cap')||0, ia = +val(b,'ia')||0, ab = +val(b,'ab')||0, meses = Math.max(1,parseInt(val(b,'m'))||1);
-  const base = r2(cap+ia-ab); if (base <= 0 || !val(b,'f')) return null;
-  return {base, meses, modo:val(b,'mo'), valor:+val(b,'v')||0, primera:val(b,'f'), extra:`${num(cap)}cap+${num(ia)}int${ab?'-'+num(ab):''}=${num(base)}`};
 }
 
 /* ---------- Toast ---------- */

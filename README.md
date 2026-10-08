@@ -101,7 +101,7 @@ El ID de cliente no es secreto (Google lo diseña para ir en el código de la p�
 - **Interés en %**: sobre el capital total, repartido entre los meses. `1000*16%/2mes → 500cap+80int=580`.
 - **Redondeo**: el capital por cuota se redondea hacia arriba y el interés hacia abajo; la última cuota ajusta la diferencia (`2000*20%/3mes → 667+133=800`, última `666+134=800`).
 - **Solo interés**: el cliente paga solo el interés del mes; ese pago queda registrado y toda la deuda pendiente se corre un mes (`3/3 +1 → 4/4`).
-- **Refinanciar**: capital pendiente + interés no pagado − abono, repartido en nuevos meses con un nuevo interés (por ejemplo, simbólico por mes).
+- **Refinanciar / juntar deudas** (en *Nuevo* o con el botón *Refinanciar* de un préstamo): se eligen una o varias deudas pendientes, de una o varias personas. Nuevo capital = capital pendiente de las elegidas + interés no pagado (por defecto, interés y mora de las cuotas ya vencidas) − abono. Las cuotas pendientes de las deudas viejas se cierran y quedan marcadas como *Renovado*, enlazadas al préstamo nuevo.
 - **Mora**: `días de atraso × mora por día` (por defecto 5). Al registrar el pago se suma al interés de esa cuota y queda como ganancia. *Exonerar* la quita antes o después del pago.
 - **% cumplido**: de las cuotas ya vencidas (o pagadas), cuántas se pagaron completas en o antes de su fecha límite. Un mes de *solo interés* cuenta como no cumplido.
 - **Ganancia del mes**: interés de las cuotas cobradas ese mes (por fecha de pago). *Por cobrar*: interés de las cuotas que vencen ese mes y aún no se pagan.
