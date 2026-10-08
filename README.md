@@ -7,7 +7,8 @@ App web para controlar préstamos y cobros. Moneda: soles (S/).
 - Atrasos, pagos de "solo interés", refinanciamientos y **Corregir** para arreglar errores.
 - **% cumplido** de cada cliente: cuotas pagadas completas y a tiempo sobre las que ya vencieron.
 - **Meses**: cada mes como en la nota (cliente, %, capital − interés, fecha y si pagó), con lo cobrado, lo que falta, la ganancia del mes y un gráfico para saltar entre meses.
-- **Clientes**: buscador de clientes con lo prestado, la ganancia, lo que deben y su % cumplido; al tocar uno se ve todo su historial de préstamos.
+- **Clientes**: buscador con lo recaudado de cada cliente (capital + interés), lo que debe, su % cumplido y hasta cuánto se le puede prestar sin riesgo; al tocar uno se ve todo su historial.
+- **Orden en el mes**: si un cliente tiene varios préstamos que empiezan el mismo mes, se marcan como *julio 1º*, *julio 2º*…
 - **Mora**: S/ 5 por día de atraso (configurable), se suma sola al registrar el pago; cada cuota tiene un botón **Exonerar** para perdonarla.
 - **Enviar estado**: enlace por WhatsApp para que el cliente vea solo su préstamo (en vivo si la nube está activa).
 - **Nube (Firebase)**: con sesión de Google, todo se sincroniza entre celular y computadora.
@@ -103,6 +104,7 @@ El ID de cliente no es secreto (Google lo diseña para ir en el código de la p�
 - **Solo interés**: el cliente paga solo el interés del mes; ese pago queda registrado y toda la deuda pendiente se corre un mes (`3/3 +1 → 4/4`).
 - **Refinanciar / juntar deudas** (en *Nuevo* o con el botón *Refinanciar* de un préstamo): se eligen una o varias deudas pendientes, de una o varias personas. Nuevo capital = capital pendiente de las elegidas + interés no pagado (por defecto, interés y mora de las cuotas ya vencidas) − abono. Las cuotas pendientes de las deudas viejas se cierran y quedan marcadas como *Renovado*, enlazadas al préstamo nuevo.
 - **Mora**: `días de atraso × mora por día` (por defecto 5). Al registrar el pago se suma al interés de esa cuota y queda como ganancia. *Exonerar* la quita antes o después del pago.
+- **Sin riesgo hasta**: interés ya cobrado al cliente − capital que todavía debe. Un préstamo nuevo menor o igual a ese monto queda cubierto por lo ya ganado con esa persona (en *Nuevo* aparece el aviso).
 - **% cumplido**: de las cuotas ya vencidas (o pagadas), cuántas se pagaron completas en o antes de su fecha límite. Un mes de *solo interés* cuenta como no cumplido.
 - **Ganancia del mes**: interés de las cuotas cobradas ese mes (por fecha de pago). *Por cobrar*: interés de las cuotas que vencen ese mes y aún no se pagan.
 
