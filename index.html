@@ -347,6 +347,8 @@ function estadoPrestamo(L){
   return {t:'Al día', cls:'blue'};
 }
 function mesKey(s){ return s.slice(0,7); }
+const etiquetaTipo = c => c.tipo === 'interes' ? ' <span class="chip amber">solo int.</span>' : c.tipo === 'abono' ? ' <span class="chip violet">abono</span>'
+  : c.cubierta ? ' <span class="chip violet">cubierta con abono</span>' : '';
 
 /* Mora: S/ 5 (configurable) por cada día de atraso de una cuota. Se suma sola al registrar el pago
    (queda dentro del interés de esa cuota, como ganancia) y se puede exonerar con un botón. */
@@ -369,7 +371,7 @@ function chipMora(L, c){
    completas y a tiempo. Un mes de "solo interés" cuenta como no cumplido. */
 function cumplimiento(cuotas){
   const t = hoy();
-  const evaluadas = cuotas.filter(c => c.tipo !== 'refi' && (c.tipo === 'interes' || c.pagado || c.fecha < t));
+  const evaluadas = cuotas.filter(c => c.tipo !== 'refi' && c.tipo !== 'abono' && !c.cubierta && (c.tipo === 'interes' || c.pagado || c.fecha < t));
   if (!evaluadas.length) return null;
   const ok = evaluadas.filter(c => c.tipo === 'normal' && c.pagado && (c.fechaPago || c.fecha) <= c.fecha).length;
   return Math.round(ok / evaluadas.length * 100);
@@ -436,6 +438,7 @@ function filaCobro(L, c){
     <div class="acts">
       <button class="btn pri" onclick="pagar('${L.id}','${c.id}')">✓ Pagó</button>
       <button class="btn warn" onclick="dlgSoloInteres('${L.id}','${c.id}')">Solo interés</button>
+      <button class="btn" onclick="dlgAbono('${L.id}')">Abono</button>
       <button class="btn wa" onclick="whatsapp('${L.id}','${c.id}')">WhatsApp</button>
     </div></div>`;
 }
@@ -503,7 +506,7 @@ function tarjeta(L){
       <button class="btn" onclick="toggle('${L.id}')">${abierto ? 'Ocultar' : 'Ver cuotas'}${nAdj ? ` · ${nAdj} archivo${nAdj > 1 ? 's' : ''}` : ''}</button>
       <button class="btn wa" onclick="enviarEstado('${L.id}')">Enviar estado</button>
       <button class="btn" onclick="corregir('${L.id}')">Corregir</button>
-      ${pend.length ? `<button class="btn warn" onclick="refinanciar('${L.id}')">Refinanciar</button>` : ''}
+      ${pend.length ? `<button class="btn" onclick="dlgAbono('${L.id}')">Abono</button><button class="btn warn" onclick="refinanciar('${L.id}')">Refinanciar</button>` : ''}
       <button class="btn dan" onclick="eliminar('${L.id}')">Eliminar</button>
     </div>
     ${abierto ? tablaCuotas(L) + panelAdjuntos(L) : ''}
@@ -517,11 +520,12 @@ function tablaCuotas(L){
   ${L.cuotas.map((c,i) => {
     const late = !c.pagado && c.fecha < t;
     const est = c.tipo === 'refi' ? `<span class="chip blue">Renovado · ${money(c.movido || 0)} pasó al préstamo nuevo</span>` : (c.pagado ? `<span class="chip green">Pagado ${fD(c.fechaPago)}</span>` : late ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>') + (chipMora(L, c) ? ' ' + chipMora(L, c) : '');
-    const acc = c.tipo === 'refi' ? '' : c.tipo === 'interes'
+    const acc = (c.tipo === 'refi' ? '' : c.tipo === 'abono' ? `<button class="btn sm" onclick="anularAbono('${L.id}','${c.id}')">Anular</button>` : c.tipo === 'interes'
       ? `<button class="btn sm" onclick="anularInteres('${L.id}','${c.id}')">Anular</button>`
-      : c.pagado ? `<button class="btn sm" onclick="despagar('${L.id}','${c.id}')">Deshacer</button> <button class="btn sm" onclick="dlgCuota('${L.id}','${c.id}')">✎</button>`
-      : `<button class="btn sm pri" onclick="pagar('${L.id}','${c.id}')">Pagó</button> <button class="btn sm" onclick="dlgCuota('${L.id}','${c.id}')">✎</button>`;
-    return `<tr class="${c.pagado?'paid':''} ${late?'late':''}"><td>${i+1}${c.tipo==='interes'?' <span class="chip amber">solo int.</span>':''}</td><td>${fD(c.fecha)}</td><td class="n">${num(c.capital)}</td><td class="n">${num(c.interes)}</td><td class="n"><b>${num(c.capital+c.interes)}</b></td><td>${est}</td><td style="white-space:nowrap">${acc}</td></tr>`;
+      : c.pagado ? (c.cubierta ? '' : `<button class="btn sm" onclick="despagar('${L.id}','${c.id}')">Deshacer</button> <button class="btn sm" onclick="dlgCuota('${L.id}','${c.id}')">✎</button>`)
+      : `<button class="btn sm pri" onclick="pagar('${L.id}','${c.id}')">Pagó</button> <button class="btn sm" onclick="dlgCuota('${L.id}','${c.id}')">✎</button>`)
+      + (c.tipo === 'abono' ? '' : ` <button class="btn sm dan" onclick="borrarCuota('${L.id}','${c.id}')" title="Borrar cuota">✕</button>`);
+    return `<tr class="${c.pagado?'paid':''} ${late?'late':''}"><td>${i+1}${etiquetaTipo(c)}</td><td>${fD(c.fecha)}</td><td class="n">${num(c.capital)}</td><td class="n">${num(c.interes)}</td><td class="n"><b>${num(c.capital+c.interes)}</b></td><td>${est}</td><td style="white-space:nowrap">${acc}</td></tr>`;
   }).join('')}</tbody></table></div>
   ${L.eventos?.length ? `<details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Historial del préstamo (${L.eventos.length})</summary><ul class="hint">${L.eventos.map(e=>`<li>${fD(e.f)} — ${esc(e.t)}</li>`).join('')}</ul></details>` : ''}`;
 }
@@ -873,11 +877,17 @@ function vCliente(k){
         <div class="hint">${money(L.capital)}${L.modo === 'pct' ? ` al ${num(L.valor)}%` : ''} · ${L.cuotas.length} cuota${L.cuotas.length > 1 ? 's' : ''}</div></div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="chip ${e.cls}">${e.t}</span>${chipCumpl(cumplimiento(L.cuotas))}</div></div>
       <div class="formula">${esc(L.formula).replace(/\n/g,'<br>')}</div>
-      <div class="tblwrap"><table><tbody>${L.cuotas.map((q, i) => `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t ? 'late' : ''}"><td>${i+1}${q.tipo === 'interes' ? ' <span class="chip amber">solo int.</span>' : ''}</td><td>${fD(q.fecha)}</td>
+      <div class="tblwrap"><table><tbody>${L.cuotas.map((q, i) => `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t ? 'late' : ''}"><td>${i+1}${etiquetaTipo(q)}</td><td>${fD(q.fecha)}</td>
         <td class="n">${num(q.capital)} + ${num(q.interes)}</td><td class="n"><b>${num(q.capital + q.interes)}</b></td>
-        <td>${q.tipo === 'refi' ? `<span class="chip blue">Renovado · ${money(q.movido || 0)}</span>` : q.pagado ? `<span class="chip green">Pagado ${fD(q.fechaPago)}</span>` : q.fecha < t ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>'}</td></tr>`).join('')}</tbody></table></div>
+        <td>${q.tipo === 'refi' ? `<span class="chip blue">Renovado · ${money(q.movido || 0)}</span>` : q.pagado ? `<span class="chip green">Pagado ${fD(q.fechaPago)}</span>` : q.fecha < t ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>'}</td>
+        <td style="white-space:nowrap;text-align:right">${q.tipo === 'refi' ? '' : q.tipo === 'abono' ? `<button class="btn sm" onclick="anularAbono('${L.id}','${q.id}')">Anular</button>`
+          : `<button class="btn sm" onclick="dlgCuota('${L.id}','${q.id}')" title="Editar">✎</button> <button class="btn sm dan" onclick="borrarCuota('${L.id}','${q.id}')" title="Borrar">✕</button>`}</td></tr>`).join('')}</tbody></table></div>
       ${L.nota ? `<div class="hint" style="margin-top:8px">Nota: ${esc(L.nota)}</div>` : ''}
-      <div class="acts" style="margin-top:10px"><button class="btn sm" onclick="abrirPrestamo('${L.id}')">Abrir en Préstamos</button></div>
+      <div class="acts" style="margin-top:10px">
+        ${pendientes(L).length ? `<button class="btn sm pri" onclick="dlgAbono('${L.id}')">Registrar abono</button>` : ''}
+        <button class="btn sm" onclick="abrirPrestamo('${L.id}')">Abrir en Préstamos</button>
+        <button class="btn sm" onclick="corregir('${L.id}')">Corregir</button>
+        <button class="btn sm dan" onclick="eliminar('${L.id}')">Eliminar préstamo</button></div>
     </div>`;
   }).join('')}`;
 }
@@ -892,12 +902,12 @@ function abrirPrestamo(lid){ const L = buscarL(lid); filtro = L.cliente; abierto
 let mesSel = hoy().slice(0,7), filtroMes = 'todos';
 function moverMes(k){ mesSel = addMonths(mesSel + '-01', k).slice(0,7); render(); }
 function filaMes(L, c){
-  const t = hoy(), st = c.tipo === 'refi' ? 'refi' : c.pagado ? (c.tipo === 'interes' ? 'int' : 'ok') : c.fecha < t ? 'late' : 'pend';
+  const t = hoy(), st = c.tipo === 'refi' ? 'refi' : c.tipo === 'abono' ? 'abono' : c.pagado ? (c.tipo === 'interes' ? 'int' : 'ok') : c.fecha < t ? 'late' : 'pend';
   const chip = {ok:`<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span>`, int:`<span class="chip amber">✓ Solo interés ${fD(c.fechaPago)}</span>`,
-    late:`<span class="chip red">Atrasado ${daysBetween(c.fecha, t)} d</span>`, pend:'<span class="chip gray">Pendiente</span>', refi:'<span class="chip blue">Renovado</span>'}[st];
+    late:`<span class="chip red">Atrasado ${daysBetween(c.fecha, t)} d</span>`, pend:'<span class="chip gray">Pendiente</span>', refi:'<span class="chip blue">Renovado</span>', abono:`<span class="chip violet">Abono ${fD(c.fechaPago)}</span>`}[st];
   return `<div class="row mrow st-${st}">${avatar(L.cliente)}
     <div class="who"><b class="link" onclick="irCliente('${L.id}')">${esc(L.cliente)}</b>${L.modo === 'pct' ? ` <span class="hint">(${num(L.valor)}%)</span>` : ''}${chipEtq(L)} <span class="chip gray">${posicion(L, c)}</span>
-      <div class="nota-l">${c.tipo === 'refi' ? `renovado: ${num(c.movido || 0)} pasó a un préstamo nuevo` : `${c.tipo === 'interes' ? `solo interés ${num(c.interes)}` : `${num(c.capital)} - ${num(c.interes)}`} <span class="hint">(${fD(c.fecha)})</span> = <b>${num(c.capital + c.interes)}</b>`}</div>
+      <div class="nota-l">${c.tipo === 'abono' ? `abono adelantado ${num(c.capital + c.interes)} (${num(c.capital)} cap + ${num(c.interes)} int)` : c.tipo === 'refi' ? `renovado: ${num(c.movido || 0)} pasó a un préstamo nuevo` : `${c.tipo === 'interes' ? `solo interés ${num(c.interes)}` : `${num(c.capital)} - ${num(c.interes)}`} <span class="hint">(${fD(c.fecha)})</span> = <b>${num(c.capital + c.interes)}</b>`}</div>
       ${L.nota ? `<div class="meta">${esc(L.nota.length > 150 ? L.nota.slice(0, 150) + '…' : L.nota)}</div>` : ''}</div>
     <div class="acts" style="align-items:center">${chip}${chipMora(L, c)}${!c.pagado ? `<button class="btn sm pri" onclick="pagar('${L.id}','${c.id}')">✓ Pagó</button>` : ''}</div></div>`;
 }
@@ -1131,7 +1141,7 @@ function construirExcel(){
       wa = {f:`HYPERLINK(${xlText(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`)},"WhatsApp")`, v:'WhatsApp', s:7};
     }
     cuotas.push([
-      {v:num.get(L), s:11}, {v:L.cliente + (etiqueta(L).n ? ` (${textoEtq(L)})` : ''), s:4}, {v:posicion(L, c), s:4}, {v:c.tipo === 'interes' ? 'Solo interés' : c.tipo === 'refi' ? 'Renovado' : 'Normal', s:4},
+      {v:num.get(L), s:11}, {v:L.cliente + (etiqueta(L).n ? ` (${textoEtq(L)})` : ''), s:4}, {v:posicion(L, c), s:4}, {v:c.tipo === 'interes' ? 'Solo interés' : c.tipo === 'refi' ? 'Renovado' : c.tipo === 'abono' ? 'Abono' : 'Normal', s:4},
       {v:serial(c.fecha), s:3}, {v:c.capital, s:2}, {v:c.interes, s:2},
       {f:`F${r}+G${r}`, v:tot, s:2},
       {v:c.pagado ? 'Pagado' : 'Pendiente', s:4}, c.fechaPago ? {v:serial(c.fechaPago), s:3} : {v:'', s:3},
@@ -1306,7 +1316,7 @@ const b64u = {
 };
 function datosEstado(nombre){
   const ps = prestamosDe(nombre), activos = ps.filter(x => pendientes(x).length), lista = activos.length ? activos : ps.slice(-1);
-  return {n:ps[0]?.cliente || nombre, p:lista.map(x => x.cuotas.map(c => [c.fecha, c.capital, c.interes, c.tipo === 'interes' ? 1 : c.tipo === 'refi' ? 2 : 0, c.pagado ? (c.fechaPago || c.fecha) : 0]))};
+  return {n:ps[0]?.cliente || nombre, p:lista.map(x => x.cuotas.map(c => [c.fecha, c.capital, c.interes, c.tipo === 'interes' ? 1 : c.tipo === 'refi' ? 2 : c.tipo === 'abono' ? 3 : 0, c.pagado ? (c.fechaPago || c.fecha) : 0]))};
 }
 function enlaceEstado(L){
   return location.origin + location.pathname + '#estado=' + b64u.enc(JSON.stringify({...datosEstado(L.cliente), g:hoy()}));
@@ -1356,7 +1366,7 @@ function pintarEstado(d, vivo){
   document.title = 'Belu Bank · Estado de cuenta';
   const t = hoy(), MESL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   const largo = s => { const p = P(s); return `${p.d} de ${MESL[p.m-1]} de ${p.y}`; };
-  const ps = d.p.map(cs => cs.map(([fecha, capital, interes, ti, fp]) => ({fecha, capital, interes, tipo:ti === 2 ? 'refi' : ti ? 'interes' : 'normal', pagado:!!fp, fechaPago:fp || null})));
+  const ps = d.p.map(cs => cs.map(([fecha, capital, interes, ti, fp]) => ({fecha, capital, interes, tipo:ti === 3 ? 'abono' : ti === 2 ? 'refi' : ti ? 'interes' : 'normal', pagado:!!fp, fechaPago:fp || null})));
   app.innerHTML = `<h2 style="font-size:20px;margin-top:8px">Hola, ${esc(d.n)} </h2>
   <p class="hint">${vivo ? `Estado de tu cuenta, actualizado al <b>${largo(d.g)}</b>. Esta página se actualiza sola cuando se registra un pago.` : `Este es el estado de tu cuenta al <b>${largo(d.g)}</b>. Si pagaste después de esa fecha, pide un enlace actualizado.`}</p>
   ${ps.map((cs, i) => {
@@ -1372,7 +1382,7 @@ function pintarEstado(d, vivo){
       <div class="nums"><span>Pagado <b>${money(pagado)}</b></span><span>Falta <b>${money(total - pagado)}</b></span></div>
       <div class="tblwrap" style="margin-top:12px"><table><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Monto</th><th>Estado</th></tr></thead><tbody>
       ${cs.map((c,j) => `<tr class="${c.pagado ? 'paid' : ''} ${!c.pagado && c.fecha < t ? 'late' : ''}"><td>${j+1}${c.tipo === 'interes' ? ' <span class="chip amber">solo interés</span>' : ''}</td><td>${fD(c.fecha)}</td><td class="n"><b>${num(c.capital + c.interes)}</b></td>
-        <td>${c.tipo === 'refi' ? '<span class="chip blue">Renovado</span>' : c.pagado ? `<span class="chip green">Pagado ${fD(c.fechaPago)}</span>` : c.fecha < t ? '<span class="chip red">Vencida</span>' : '<span class="chip gray">Pendiente</span>'}</td></tr>`).join('')}
+        <td>${c.tipo === 'refi' ? '<span class="chip blue">Renovado</span>' : c.tipo === 'abono' ? `<span class="chip violet">Abono ${fD(c.fechaPago)}</span>` : c.pagado ? `<span class="chip green">Pagado ${fD(c.fechaPago)}</span>` : c.fecha < t ? '<span class="chip red">Vencida</span>' : '<span class="chip gray">Pendiente</span>'}</td></tr>`).join('')}
       </tbody></table></div></div>`;
   }).join('')}
   <div class="foot">Belu Bank · Esta página muestra solo tu información.</div>`;
@@ -1622,6 +1632,66 @@ function despagar(lid, cid){
   if (!confirm(`¿Marcar la cuota ${posicion(L,c)} de ${L.cliente} como NO pagada?`)) return;
   if (c.mora){ c.interes = r2(c.interes - c.mora); delete c.mora; }
   c.pagado = false; c.fechaPago = null; L.eventos.push({f:hoy(), t:`Se desmarcó el pago de la cuota ${posicion(L,c)}`}); save();
+}
+/* Abono: el cliente paga de más y se descuenta de las próximas cuotas (primero capital, luego interés).
+   Queda una fila "abono" con lo recibido; si una cuota queda en 0, se marca como cubierta. */
+function dlgAbono(lid){
+  const L = buscarL(lid), pend = pendientes(L);
+  if (!pend.length) return;
+  const debe = r2(pend.reduce((s, c) => s + c.capital + c.interes, 0));
+  dialogo(`Abono de ${L.cliente}`, `<div class="form">
+    <label>Monto que pagó de más (S/)<input name="m" type="number" min="0" step="any" value="" placeholder="Ej. 100"></label>
+    <label>Fecha<input name="f" type="date" value="${hoy()}"></label>
+    <p class="full hint" id="expl" style="margin:0"></p></div>`,
+    b => { const m = Math.min(+val(b,'m') || 0, debe); if (m > 0) registrarAbono(L, m, val(b,'f') || hoy()); }, 'Registrar abono', b => {
+      const m = Math.min(+val(b,'m') || 0, debe);
+      let rest = m;
+      const filas = pend.map(c => { const cap = Math.min(rest, c.capital); rest = r2(rest - cap); const int = Math.min(rest, c.interes); rest = r2(rest - int);
+        return {c, cap, int}; }).filter(x => x.cap || x.int);
+      b.querySelector('#expl').innerHTML = !m ? `Debe en total ${money(debe)}. El abono se descuenta de las próximas cuotas, primero del capital.`
+        : filas.map(x => `Cuota ${posicion(L, x.c)} (${fD(x.c.fecha)}): ${money(x.c.capital + x.c.interes)} → <b>${money(r2(x.c.capital + x.c.interes - x.cap - x.int))}</b>`).join('<br>');
+    });
+}
+function registrarAbono(L, monto, fecha){
+  const snap = snapshot(), pend = pendientes(L), aplicado = [];
+  let rest = monto, capT = 0, intT = 0;
+  for (const c of pend){
+    if (rest <= 0) break;
+    const cap = Math.min(rest, c.capital); rest = r2(rest - cap);
+    const int = Math.min(rest, c.interes); rest = r2(rest - int);
+    if (!cap && !int) continue;
+    c.capital = r2(c.capital - cap); c.interes = r2(c.interes - int); capT = r2(capT + cap); intT = r2(intT + int);
+    const cubre = c.capital + c.interes === 0;
+    if (cubre){ c.pagado = true; c.fechaPago = fecha; c.cubierta = true; }
+    aplicado.push({id:c.id, cap, int, cubre});
+  }
+  const idx = L.cuotas.indexOf(pend[0]);
+  L.cuotas.splice(idx, 0, {id:uid(), fecha, capital:capT, interes:intT, tipo:'abono', pagado:true, fechaPago:fecha, aplicado});
+  L.eventos.push({f:hoy(), t:`Abono de ${money(monto)} descontado de las próximas cuotas`});
+  save(); toast(`${L.cliente}: abono de ${money(monto)} registrado`, snap);
+}
+function anularAbono(lid, cid){
+  const L = buscarL(lid), a = L.cuotas.find(x => x.id === cid);
+  if (!confirm(`¿Anular el abono de ${money(a.capital + a.interes)}? Las cuotas vuelven a su monto anterior.`)) return;
+  const snap = snapshot();
+  for (const x of a.aplicado || []){
+    const c = L.cuotas.find(q => q.id === x.id); if (!c) continue;
+    c.capital = r2(c.capital + x.cap); c.interes = r2(c.interes + x.int);
+    if (x.cubre){ c.pagado = false; c.fechaPago = null; delete c.cubierta; }
+  }
+  L.cuotas = L.cuotas.filter(x => x !== a);
+  L.eventos.push({f:hoy(), t:'Se anuló un abono'});
+  save(); toast('Abono anulado', snap);
+}
+function borrarCuota(lid, cid){
+  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid);
+  if (c.tipo === 'abono') return anularAbono(lid, cid);
+  if (L.cuotas.length === 1) return eliminar(lid);
+  if (!confirm(`¿Borrar la cuota ${posicion(L, c)} de ${L.cliente} (${fD(c.fecha)}, ${money(c.capital + c.interes)})?`)) return;
+  const snap = snapshot();
+  L.cuotas = L.cuotas.filter(x => x !== c);
+  L.eventos.push({f:hoy(), t:`Se borró una cuota de ${money(c.capital + c.interes)} (${fD(c.fecha)})`});
+  save(); toast('Cuota borrada', snap);
 }
 function exonerar(lid, cid){
   const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), snap = snapshot();

@@ -105,6 +105,7 @@ El ID de cliente no es secreto (Google lo diseña para ir en el código de la p�
 - **Refinanciar / juntar deudas** (en *Nuevo* o con el botón *Refinanciar* de un préstamo): se eligen una o varias deudas pendientes, de una o varias personas. Nuevo capital = capital pendiente de las elegidas + interés no pagado (por defecto, interés y mora de las cuotas ya vencidas) − abono. Las cuotas pendientes de las deudas viejas se cierran y quedan marcadas como *Renovado*, enlazadas al préstamo nuevo.
 - **Mora**: `días de atraso × mora por día` (por defecto 5). Al registrar el pago se suma al interés de esa cuota y queda como ganancia. *Exonerar* la quita antes o después del pago.
 - **Sin riesgo hasta**: interés ya cobrado al cliente − capital que todavía debe. Un préstamo nuevo menor o igual a ese monto queda cubierto por lo ya ganado con esa persona (en *Nuevo* aparece el aviso).
+- **Abono**: si el cliente paga de más, el monto se descuenta de las próximas cuotas (primero capital, luego interés). Queda registrado como *abono* (cuenta como cobrado ese día) y las cuotas que llegan a 0 quedan *cubiertas*. Se puede anular.
 - **% cumplido**: de las cuotas ya vencidas (o pagadas), cuántas se pagaron completas en o antes de su fecha límite. Un mes de *solo interés* cuenta como no cumplido.
 - **Ganancia del mes**: interés de las cuotas cobradas ese mes (por fecha de pago). *Por cobrar*: interés de las cuotas que vencen ese mes y aún no se pagan.
 
