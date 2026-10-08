@@ -16,21 +16,21 @@
   --bg:#f3f6f4; --card:#ffffff; --ink:#1d2a24; --muted:#66756d; --line:#dfe7e2;
   --brand:#2f7d5b; --brand-ink:#ffffff; --brand-soft:#e3f1ea;
   --red:#c2412d; --red-soft:#fbe9e5; --amber:#a86a00; --amber-soft:#fdf2dc;
-  --blue:#2b62a8; --blue-soft:#e6eef9; --shadow:0 1px 2px rgba(0,0,0,.05),0 2px 8px rgba(0,0,0,.04);
+  --blue:#2b62a8; --blue-soft:#e6eef9; --violet:#6b46c1; --violet-soft:#efe9fb; --shadow:0 1px 2px rgba(0,0,0,.05),0 2px 8px rgba(0,0,0,.04);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#121815; --card:#1b2420; --ink:#e4ece7; --muted:#93a39a; --line:#2c3833;
     --brand:#5cb88f; --brand-ink:#0d1a14; --brand-soft:#1f3a2e;
     --red:#ef7a66; --red-soft:#3a201b; --amber:#e6b450; --amber-soft:#382c14;
-    --blue:#7fa9e3; --blue-soft:#1c2a3d; --shadow:none;
+    --blue:#7fa9e3; --blue-soft:#1c2a3d; --violet:#b39af0; --violet-soft:#2a2340; --shadow:none;
   }
 }
 :root[data-theme="dark"]{
   --bg:#121815; --card:#1b2420; --ink:#e4ece7; --muted:#93a39a; --line:#2c3833;
   --brand:#5cb88f; --brand-ink:#0d1a14; --brand-soft:#1f3a2e;
   --red:#ef7a66; --red-soft:#3a201b; --amber:#e6b450; --amber-soft:#382c14;
-  --blue:#7fa9e3; --blue-soft:#1c2a3d; --shadow:none;
+  --blue:#7fa9e3; --blue-soft:#1c2a3d; --violet:#b39af0; --violet-soft:#2a2340; --shadow:none;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
@@ -118,7 +118,7 @@ table.edit input[type=number]{width:84px;text-align:right}
 table.edit input[type=date]{width:140px}
 .adjs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .adj{width:86px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;border:1px solid var(--line);border-radius:10px;padding:6px;background:var(--bg)}
-.adj img,.adj .ico{width:72px;height:72px;object-fit:cover;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:30px}
+.adj img,.adj .ico{width:72px;height:72px;object-fit:cover;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--muted);background:var(--line)}
 .adj small{font-size:11px;color:var(--muted);max-width:74px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .adj.add{justify-content:center;font-size:26px;color:var(--brand)}
 .viewer img,.viewer video{max-width:100%;max-height:65vh;border-radius:8px;display:block;margin:0 auto}
@@ -137,8 +137,6 @@ table.edit input[type=date]{width:140px}
 .nextbox{background:var(--bg);border-radius:10px;padding:12px;margin:12px 0;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
 .nextbox b{font-size:20px;font-variant-numeric:tabular-nums}
 .foot{color:var(--muted);font-size:12px;text-align:center;margin:28px 0 12px}
-nav button{display:inline-flex;align-items:center;gap:6px}
-nav .ic{font-size:15px;line-height:1}
 .av{--h:150;width:38px;height:38px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:none;
   background:hsl(var(--h) 60% 90%);color:hsl(var(--h) 45% 28%)}
 .av.lg{width:56px;height:56px;font-size:20px}
@@ -152,6 +150,23 @@ nav .ic{font-size:15px;line-height:1}
 .cli:hover{border-color:var(--brand)}
 .cli:active{transform:scale(.99)}
 .cli-hd{display:flex;gap:12px;align-items:center}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px}
+.stat{border-radius:12px;padding:10px 12px;min-width:0;background:var(--bg);color:var(--ink)}
+.stat .l{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.8}
+.stat .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat .s{font-size:12px;opacity:.85;margin-top:1px}
+.stat.blue{background:var(--blue-soft);color:var(--blue)}
+.stat.green{background:var(--brand-soft);color:var(--brand)}
+.stat.amber{background:var(--amber-soft);color:var(--amber)}
+.stat.red{background:var(--red-soft);color:var(--red)}
+.stat.violet{background:var(--violet-soft);color:var(--violet)}
+.stat.gray{background:var(--bg);color:var(--muted)}
+.cli .stats{grid-template-columns:repeat(4,1fr);gap:6px}
+.cli .stat{padding:8px 10px}
+.cli .stat .v{font-size:15px}
+.fechas{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.fechas span{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:12px;font-variant-numeric:tabular-nums}
+.fechas span.late{border-color:var(--red);color:var(--red)}
 .cli-hd .chips{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .cli-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;background:var(--bg);border-radius:10px;padding:10px 12px}
 .cli-nums span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
@@ -174,13 +189,14 @@ nav .ic{font-size:15px;line-height:1}
 .tl .formula{margin:8px 0}
 details.card > summary{padding:12px 14px;cursor:pointer;font-weight:600;font-size:14px}
 @media (max-width:600px){
-  body{padding-bottom:calc(68px + env(safe-area-inset-bottom))}
+  body{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
   nav{position:fixed;left:0;right:0;bottom:0;margin:0;z-index:30;background:var(--card);border-top:1px solid var(--line);
     display:flex;flex-wrap:nowrap;gap:0;padding:4px 2px calc(4px + env(safe-area-inset-bottom))}
-  nav button{flex:1;flex-direction:column;gap:2px;padding:6px 0;font-size:10.5px;min-width:0}
-  nav .ic{font-size:19px}
+  nav button{flex:1;padding:12px 0;font-size:12px;min-width:0;border-radius:8px}
   #toast{bottom:calc(80px + env(safe-area-inset-bottom));max-width:calc(100vw - 24px)}
   .clientes{grid-template-columns:1fr}
+  .cli .stats{grid-template-columns:1fr 1fr}
+  .stats{grid-template-columns:1fr 1fr}
   .mes-nav h2{font-size:18px}
   .amt{text-align:left;min-width:0}
   .loans{grid-template-columns:1fr}
@@ -198,12 +214,12 @@ details.card > summary{padding:12px 14px;cursor:pointer;font-weight:600;font-siz
 <header><div class="top">
   <h1>Belu <span>Bank</span></h1><span id="nubeInd" class="hint" style="font-size:12px;font-weight:600"></span>
   <nav id="nav">
-    <button data-v="inicio" class="on"><span class="ic">💰</span><span>Cobros</span></button>
-    <button data-v="clientes"><span class="ic">👥</span><span>Clientes</span></button>
-    <button data-v="meses"><span class="ic">📅</span><span>Meses</span></button>
-    <button data-v="prestamos"><span class="ic">📄</span><span>Préstamos</span></button>
-    <button data-v="nuevo"><span class="ic">➕</span><span>Nuevo</span></button>
-    <button data-v="respaldo"><span class="ic">☁</span><span>Respaldo</span></button>
+    <button data-v="inicio" class="on">Cobros</button>
+    <button data-v="clientes">Clientes</button>
+    <button data-v="meses">Meses</button>
+    <button data-v="prestamos">Préstamos</button>
+    <button data-v="nuevo">Nuevo</button>
+    <button data-v="respaldo">Respaldo</button>
   </nav>
 </div></header>
 <main id="app"></main>
@@ -367,13 +383,13 @@ function render(){
 
 function bannerRespaldo(){
   let h = '';
-  if (!persist) h += `<div class="banner">⚠️ Este navegador no permite guardar datos aquí. Usa “Respaldo → Exportar” antes de cerrar.</div>`;
+  if (!persist) h += `<div class="banner">Este navegador no permite guardar datos aquí. Usa “Respaldo → Exportar” antes de cerrar.</div>`;
   const u = S.ultimoRespaldo;
   const sinNube = !nube.uid && !localStorage.getItem(KEY_NUBE);
-  if (sinNube) h += `<div class="banner" style="background:var(--brand-soft);color:var(--brand)">☁ Guarda tus préstamos en la nube con tu cuenta de Google: no se pierden si cambias de celular y los ves también en la computadora. <button class="btn sm pri" onclick="entrarNube()" ${nube.estado === 'conectando' ? 'disabled' : ''}>${nube.estado === 'conectando' ? 'Conectando…' : 'Entrar con Google'}</button></div>`;
-  else if (persist && !nubeActiva() && (!u || daysBetween(u, hoy()) > 7)) h += `<div class="banner">💾 ${u ? 'Tu último respaldo fue hace '+daysBetween(u,hoy())+' días.' : 'Aún no tienes un respaldo.'} Los datos viven solo en este navegador. <button class="btn sm" onclick="exportarJSON()">Descargar respaldo</button></div>`;
-  if (S.drive?.auto && GOOGLE_CLIENT_ID && !Drive.listo()) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">☁ Google Drive está desconectado; tus cambios no se están copiando. <button class="btn sm" onclick="sincronizarDrive(true)">Conectar y guardar</button></div>`;
-  if (localStorage.getItem(KEY_NUBE) && nube.sinSesion) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">☁ Tu sesión de la nube se cerró; los cambios no se están sincronizando. <button class="btn sm" onclick="entrarNube()">Entrar con Google</button></div>`;
+  if (sinNube) h += `<div class="banner" style="background:var(--brand-soft);color:var(--brand)">Guarda tus préstamos en la nube con tu cuenta de Google: no se pierden si cambias de celular y los ves también en la computadora. <button class="btn sm pri" onclick="entrarNube()" ${nube.estado === 'conectando' ? 'disabled' : ''}>${nube.estado === 'conectando' ? 'Conectando…' : 'Entrar con Google'}</button></div>`;
+  else if (persist && !nubeActiva() && (!u || daysBetween(u, hoy()) > 7)) h += `<div class="banner">${u ? 'Tu último respaldo fue hace '+daysBetween(u,hoy())+' días.' : 'Aún no tienes un respaldo.'} Los datos viven solo en este navegador. <button class="btn sm" onclick="exportarJSON()">Descargar respaldo</button></div>`;
+  if (S.drive?.auto && GOOGLE_CLIENT_ID && !Drive.listo()) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">Google Drive está desconectado; tus cambios no se están copiando. <button class="btn sm" onclick="sincronizarDrive(true)">Conectar y guardar</button></div>`;
+  if (localStorage.getItem(KEY_NUBE) && nube.sinSesion) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">Tu sesión de la nube se cerró; los cambios no se están sincronizando. <button class="btn sm" onclick="entrarNube()">Entrar con Google</button></div>`;
   if (S.ejemplo) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">Estos préstamos son de ejemplo, para que veas cómo funciona. Cuando quieras, empieza vacío o restaura tu respaldo. <button class="btn sm" onclick="S={prestamos:[],ultimoRespaldo:S.ultimoRespaldo,ejemplo:false};save()">Empezar vacío</button> <button class="btn sm" onclick="document.getElementById('fileIn').click()">Restaurar respaldo</button></div>`;
   return h;
 }
@@ -420,7 +436,7 @@ function vInicio(){
   ${grupo('Atrasados', atras, 'red')}
   ${grupo('Este mes ('+nombreMes(mes)+')', esteMes)}
   ${grupo('Próximo mes ('+nombreMes(prox)+')', proxMes)}
-  ${!atras.length && !esteMes.length && !proxMes.length ? '<div class="card empty" style="margin-top:16px">No hay cobros pendientes para este mes ni el próximo. 🎉</div>' : ''}`;
+  ${!atras.length && !esteMes.length && !proxMes.length ? '<div class="card empty" style="margin-top:16px">No hay cobros pendientes para este mes ni el próximo. </div>' : ''}`;
 }
 
 function vPrestamos(){
@@ -449,12 +465,12 @@ function tarjeta(L){
     <div class="bar"><i style="width:${totCap ? Math.round(pagCap/totCap*100) : 100}%"></i></div>
     <div class="nums"><span>Capital devuelto <b>${money(pagCap)}</b> de ${money(totCap)}</span><span>Interés cobrado <b>${money(intCobrado)}</b></span></div>
     ${cpTotal !== null ? `<div class="hint" style="margin-top:6px">Cumplimiento con todos sus préstamos (${todos.length}): <b>${cpTotal}%</b></div>` : ''}
-    ${L.ingreso ? `<div class="hint" style="margin-top:6px">💼 Gana ${money(L.ingreso)} al mes · la cuota es el <b style="color:var(--${pctIng > 40 ? 'red' : pctIng > 25 ? 'amber' : 'brand'})">${pctIng}%</b> de su ingreso</div>` : ''}
-    ${L.tel ? `<div class="hint" style="margin-top:6px">📞 ${esc(L.tel)}</div>` : ''}
-    ${L.nota ? `<div class="hint" style="margin-top:6px">📝 ${esc(L.nota)}</div>` : ''}
+    ${L.ingreso ? `<div class="hint" style="margin-top:6px">Gana ${money(L.ingreso)} al mes · la cuota es el <b style="color:var(--${pctIng > 40 ? 'red' : pctIng > 25 ? 'amber' : 'brand'})">${pctIng}%</b> de su ingreso</div>` : ''}
+    ${L.tel ? `<div class="hint" style="margin-top:6px">Tel. ${esc(L.tel)}</div>` : ''}
+    ${L.nota ? `<div class="hint" style="margin-top:6px">Nota: ${esc(L.nota)}</div>` : ''}
     <div class="acts">
-      <button class="btn" onclick="toggle('${L.id}')">${abierto ? 'Ocultar' : 'Ver cuotas'}${nAdj ? ` · 📎 ${nAdj}` : ''}</button>
-      <button class="btn wa" onclick="enviarEstado('${L.id}')">📤 Enviar estado</button>
+      <button class="btn" onclick="toggle('${L.id}')">${abierto ? 'Ocultar' : 'Ver cuotas'}${nAdj ? ` · ${nAdj} archivo${nAdj > 1 ? 's' : ''}` : ''}</button>
+      <button class="btn wa" onclick="enviarEstado('${L.id}')">Enviar estado</button>
       <button class="btn" onclick="corregir('${L.id}')">Corregir</button>
       ${pend.length ? `<button class="btn warn" onclick="dlgRefinanciar('${L.id}')">Refinanciar</button>` : ''}
       <button class="btn dan" onclick="eliminar('${L.id}')">Eliminar</button>
@@ -505,7 +521,7 @@ function vNuevo(){
     <label id="lblPagadas">Cuotas ya pagadas<input name="pagadas" type="number" min="0" step="1" value="${b.pagadas}"><span class="hint" style="font-weight:400">Para registrar préstamos que ya venían de antes</span></label>
     <label class="full">Nota<textarea name="nota" rows="2" placeholder="Opcional">${esc(b.nota)}</textarea></label>
     <label class="full check"><input type="checkbox" name="personalizado" ${b.personalizado?'checked':''}> Elegir la fecha y el monto de cada cuota</label>
-    ${L0 ? '' : `<div class="full"><label class="btn" style="display:inline-flex;flex-direction:row;color:var(--ink)">📎 Adjuntar contrato, fotos o videos<input type="file" multiple hidden accept="${ACCEPT}" id="inArch"></label><div id="listaArch" class="hint" style="margin-top:6px"></div></div>`}
+    ${L0 ? '' : `<div class="full"><label class="btn" style="display:inline-flex;flex-direction:row;color:var(--ink)">Adjuntar contrato, fotos o videos<input type="file" multiple hidden accept="${ACCEPT}" id="inArch"></label><div id="listaArch" class="hint" style="margin-top:6px"></div></div>`}
   </div><div class="preview" id="prev"></div>
   <div style="padding:0 16px 16px;display:flex;justify-content:flex-end;gap:8px">
     ${L0 ? `<button class="btn" onclick="borrador=nuevoBorrador();ir('prestamos')">Cancelar</button>` : `<button class="btn" onclick="borrador=nuevoBorrador();vNuevo()">Limpiar</button>`}
@@ -518,7 +534,7 @@ function vNuevo(){
 }
 function listaArchivos(){
   const el = document.getElementById('listaArch'); if (!el) return;
-  el.innerHTML = borrador.archivos.map((a,i) => `<div>📄 ${esc(a.name)} <span class="hint">(${tamano(a.size)})</span> <button class="btn sm dan" type="button" onclick="borrador.archivos.splice(${i},1);listaArchivos()">✕</button></div>`).join('');
+  el.innerHTML = borrador.archivos.map((a,i) => `<div>${esc(a.name)} <span class="hint">(${tamano(a.size)})</span> <button class="btn sm dan" type="button" onclick="borrador.archivos.splice(${i},1);listaArchivos()">✕</button></div>`).join('');
 }
 const tamano = n => n > 1048576 ? (n/1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n/1024)) + ' KB';
 function leerBorrador(){
@@ -623,12 +639,31 @@ function datosClientes(){
       ganado:r2(cs.filter(c => c.pagado).reduce((s, c) => s + c.interes, 0)),
       debe:r2(pend.reduce((s, c) => s + c.capital + c.interes, 0)),
       atrasado:pend.some(c => c.fecha < hoy()), activos:ps.filter(L => pendientes(L).length).length,
-      cumpl:cumplimiento(cs), desde:ps.map(L => L.cuotas[0]?.fecha || L.creado).sort()[0]};
+      cumpl:cumplimiento(cs), desde:ps.map(L => L.cuotas[0]?.fecha || L.creado).sort()[0],
+      porCobrarInt:r2(pend.reduce((s, c) => s + c.interes, 0)),
+      proximas:pend.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)),
+      ultimoPago:cs.filter(c => c.pagado && c.fechaPago).sort((a, b) => b.fechaPago.localeCompare(a.fechaPago))[0] || null,
+      aTiempo:cs.filter(c => c.tipo === 'normal' && c.pagado && (c.fechaPago || c.fecha) <= c.fecha).length,
+      conAtraso:cs.filter(c => (c.tipo === 'normal' && c.pagado && (c.fechaPago || c.fecha) > c.fecha) || c.tipo === 'interes' || (!c.pagado && c.fecha < hoy())).length};
   });
 }
 let clienteSel = null, filtroCli = '', ordenCli = 'deuda', listaCli = [];
 function irCliente(lid){ clienteSel = claveCliente(buscarL(lid).cliente); ir('clientes'); }
 function verCliente(i){ clienteSel = listaCli[i].k; render(); window.scrollTo(0,0); }
+/* Resumen del cliente en cajas de colores. En la lista van 4; en la ficha, 6. */
+function cajasCliente(c, corto){
+  const t = hoy(), sig = c.proximas[0], up = c.ultimoPago;
+  const caja = (cls, l, v, sub) => `<div class="stat ${cls}"><div class="l">${l}</div><div class="v">${v}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  const prox = sig ? caja(sig.fecha < t ? 'red' : 'violet', 'Próximo pago', fD(sig.fecha), `${money(totalHoy(sig))}${sig.fecha < t ? ` · ${daysBetween(sig.fecha, t)} días tarde` : sig.fecha === t ? ' · hoy' : ` · en ${daysBetween(t, sig.fecha)} días`}`)
+    : caja('gray', 'Próximo pago', '—', 'sin cuotas pendientes');
+  const debe = caja(c.atrasado ? 'red' : c.debe ? 'amber' : 'gray', 'Debe ahora', money(c.debe), c.debe ? `${money(c.porCobrarInt)} de interés` : 'sin deuda');
+  const gan = caja('green', 'Interés ganado', money(c.ganado), corto ? '' : 'ya cobrado');
+  const prest = caja('blue', 'Prestado', money(c.prestado), corto ? '' : `en ${c.prestamos.length} préstamo${c.prestamos.length > 1 ? 's' : ''}`);
+  if (corto) return `<div class="stats">${prox}${debe}${gan}${prest}</div>`;
+  const ult = up ? caja('gray', 'Último pago', fD(up.fechaPago), money(up.capital + up.interes)) : caja('gray', 'Último pago', '—', 'aún no paga');
+  const punt = caja(c.cumpl === null ? 'gray' : c.cumpl >= 90 ? 'green' : c.cumpl >= 60 ? 'amber' : 'red', 'Puntualidad', c.cumpl === null ? '—' : c.cumpl + '%', `${c.aTiempo} a tiempo · ${c.conAtraso} con atraso`);
+  return `<div class="stats">${prox}${debe}${gan}${prest}${ult}${punt}</div>`;
+}
 function chipCliente(c){ return c.debe ? (c.atrasado ? '<span class="chip red">Atrasado</span>' : '<span class="chip blue">Debe</span>') : '<span class="chip green">Sin deuda</span>'; }
 
 function vClientes(){
@@ -644,15 +679,14 @@ function vClientes(){
     <div class="kpi"><div class="l">Prestado en total</div><div class="v">${money(suma('prestado'))}</div><div class="s">suma de todos los préstamos</div></div>
     <div class="kpi"><div class="l">Ganancia total</div><div class="v" style="color:var(--brand)">${money(suma('ganado'))}</div><div class="s">interés cobrado</div></div>
   </div>
-  <div class="toolbar"><input id="buscarCli" placeholder="🔍 Buscar cliente o apodo…" value="${esc(filtroCli)}">
+  <div class="toolbar"><input id="buscarCli" placeholder="Buscar cliente o apodo…" value="${esc(filtroCli)}">
     <select id="ordenCli" style="max-width:200px">${[['deuda','Más deuda primero'],['az','Nombre (A–Z)'],['prestado','Más prestado'],['ganado','Más ganancia'],['cumpl','Mejor cumplimiento']]
       .map(([v,t]) => `<option value="${v}" ${v === ordenCli ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
   <div class="clientes">${listaCli.map((c, i) => `<div class="card cli" onclick="verCliente(${i})">
     <div class="cli-hd">${avatar(c.nombre)}<div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${c.apodo ? ` <span class="hint">“${esc(c.apodo)}”</span>` : ''}
       <div class="hint">${c.prestamos.length} préstamo${c.prestamos.length > 1 ? 's' : ''} · desde ${nombreMes(c.desde.slice(0,7), true)}</div></div>
       <div class="chips">${chipCliente(c)}${chipCumpl(c.cumpl)}</div></div>
-    <div class="cli-nums"><div><span>Prestado</span><b>${money(c.prestado)}</b></div><div><span>Ganancia</span><b style="color:var(--brand)">${money(c.ganado)}</b></div>
-      <div><span>Debe</span><b ${c.atrasado ? 'style="color:var(--red)"' : ''}>${money(c.debe)}</b></div></div>
+    ${cajasCliente(c, true)}
   </div>`).join('') || '<div class="card empty">Ningún cliente coincide con la búsqueda.</div>'}</div>`;
   const b = document.getElementById('buscarCli');
   b.oninput = () => { filtroCli = b.value; const pos = b.selectionStart; vClientes(); const nb = document.getElementById('buscarCli'); nb.focus(); nb.setSelectionRange(pos, pos); };
@@ -666,18 +700,15 @@ function vCliente(k){
   app.innerHTML = `<div class="toolbar" style="margin-top:0"><button class="btn" onclick="clienteSel=null;render()">← Todos los clientes</button></div>
   <div class="card" style="padding:16px">
     <div class="cli-hd">${avatar(c.nombre, true)}<div style="flex:1;min-width:0"><h2 style="margin:0;font-size:20px">${esc(c.nombre)}</h2>
-      <div class="hint">${[c.apodo && `“${esc(c.apodo)}”`, c.tel && `📞 ${esc(c.tel)}`, c.ingreso && `💼 gana ${money(c.ingreso)} al mes`, `cliente desde ${nombreMes(c.desde.slice(0,7))}`].filter(Boolean).join(' · ')}</div></div>
+      <div class="hint">${[c.apodo && `“${esc(c.apodo)}”`, c.tel && `Tel. ${esc(c.tel)}`, c.ingreso && `gana ${money(c.ingreso)} al mes`, `cliente desde ${nombreMes(c.desde.slice(0,7))}`].filter(Boolean).join(' · ')}</div></div>
       <div class="chips">${chipCliente(c)}${chipCumpl(c.cumpl)}</div></div>
     <div class="acts" style="margin-top:12px">
-      ${activo ? `<button class="btn wa" onclick="enviarEstado('${activo.id}')">📤 Enviar estado</button>` : ''}
+      ${activo ? `<button class="btn wa" onclick="enviarEstado('${activo.id}')">Enviar estado</button>` : ''}
       <button class="btn pri" onclick="nuevoParaCliente()">+ Nuevo préstamo</button></div>
   </div>
-  <div class="kpis" style="margin-top:12px">
-    <div class="kpi"><div class="l">Prestado en total</div><div class="v">${money(c.prestado)}</div><div class="s">en ${c.prestamos.length} préstamo${c.prestamos.length > 1 ? 's' : ''}</div></div>
-    <div class="kpi"><div class="l">Ganancia (interés)</div><div class="v" style="color:var(--brand)">${money(c.ganado)}</div><div class="s">ya cobrado</div></div>
-    <div class="kpi"><div class="l">Ya pagó</div><div class="v">${money(c.cobrado)}</div><div class="s">capital + interés</div></div>
-    <div class="kpi ${c.atrasado ? 'red' : ''}"><div class="l">Debe ahora</div><div class="v">${money(c.debe)}</div><div class="s">${c.activos ? `${c.activos} préstamo${c.activos > 1 ? 's' : ''} activo${c.activos > 1 ? 's' : ''}` : 'sin deuda'}</div></div>
-  </div>
+  ${cajasCliente(c, false)}
+  ${c.proximas.length ? `<div class="card" style="padding:12px 14px;margin-top:8px"><div class="l hint" style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em">Próximas fechas de pago</div>
+    <div class="fechas">${c.proximas.map(q => `<span class="${q.fecha < hoy() ? 'late' : ''}">${fD(q.fecha)} · <b>${money(totalHoy(q))}</b></span>`).join('')}</div></div>` : ''}
   <h2>Historial de préstamos</h2>
   ${ps.map(L => {
     const e = estadoPrestamo(L), t = hoy(), ini = L.cuotas[0]?.fecha, fin = L.cuotas.at(-1)?.fecha;
@@ -689,7 +720,7 @@ function vCliente(k){
       <div class="tblwrap"><table><tbody>${L.cuotas.map((q, i) => `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t ? 'late' : ''}"><td>${i+1}${q.tipo === 'interes' ? ' <span class="chip amber">solo int.</span>' : ''}</td><td>${fD(q.fecha)}</td>
         <td class="n">${num(q.capital)} + ${num(q.interes)}</td><td class="n"><b>${num(q.capital + q.interes)}</b></td>
         <td>${q.pagado ? `<span class="chip green">Pagado ${fD(q.fechaPago)}</span>` : q.fecha < t ? '<span class="chip red">Atrasado</span>' : '<span class="chip gray">Pendiente</span>'}</td></tr>`).join('')}</tbody></table></div>
-      ${L.nota ? `<div class="hint" style="margin-top:8px">📝 ${esc(L.nota)}</div>` : ''}
+      ${L.nota ? `<div class="hint" style="margin-top:8px">Nota: ${esc(L.nota)}</div>` : ''}
       <div class="acts" style="margin-top:10px"><button class="btn sm" onclick="abrirPrestamo('${L.id}')">Abrir en Préstamos</button></div>
     </div>`;
   }).join('')}`;
@@ -787,7 +818,7 @@ function vRespaldo(){
   <div class="card" style="padding:16px">${GOOGLE_CLIENT_ID ? `
     <p style="margin-top:0">Guarda en tu Drive, en la carpeta <b>Belu Bank</b>: el respaldo, el Excel y los archivos adjuntos.</p>
     <p class="hint">${d.ultimo ? `Última copia en Drive: ${fD(d.ultimo.slice(0,10))} a las ${new Date(d.ultimo).toTimeString().slice(0,5)}` : 'Todavía no se ha guardado nada en Drive.'}</p>
-    <div class="acts"><button class="btn pri" id="btnDrive" onclick="sincronizarDrive(true)">☁ Guardar en Drive ahora</button></div>
+    <div class="acts"><button class="btn pri" id="btnDrive" onclick="sincronizarDrive(true)">Guardar en Drive ahora</button></div>
     <label class="check" style="margin-top:12px"><input type="checkbox" ${d.auto ? 'checked' : ''} onchange="S.drive={...(S.drive||{}),auto:this.checked};guardarLocal()"> Copiar a Drive automáticamente cada vez que hago un cambio</label>
     <p class="hint" style="margin-bottom:0">Google pide permiso la primera vez y luego más o menos cada hora; si se desconecta, arriba aparece un aviso para reconectar.</p>`
     : '<p class="hint" style="margin:0">La conexión con Google Drive todavía no está activada en esta app. Mientras tanto, descarga el respaldo y el Excel y súbelos a Drive desde tu celular.</p>'}
@@ -1073,7 +1104,7 @@ async function urlAdjunto(id){
   const u = URL.createObjectURL(r.blob); urlsAdj.set(id, u); return u;
 }
 function panelAdjuntos(L){
-  const ico = t => t.startsWith('video/') ? '🎬' : t === 'application/pdf' ? '📄' : '📎';
+  const ico = t => t.startsWith('video/') ? 'VIDEO' : t === 'application/pdf' ? 'PDF' : 'ARCHIVO';
   setTimeout(() => document.querySelectorAll('img[data-adj]:not([src])').forEach(async img => { const u = await urlAdjunto(img.dataset.adj); if (u) img.src = u; }));
   return `<div class="grp" style="margin-top:14px">Archivos (contratos, fotos, videos)</div><div class="adjs" style="margin-top:0">
     ${(L.adjuntos || []).map(x => `<div class="adj" onclick="verAdjunto('${L.id}','${x.id}')">${x.tipo.startsWith('image/') ? `<img data-adj="${x.id}" alt="">` : `<span class="ico">${ico(x.tipo)}</span>`}<small>${esc(x.nombre)}</small></div>`).join('')}
@@ -1170,7 +1201,7 @@ function pintarEstado(d, vivo){
   const t = hoy(), MESL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   const largo = s => { const p = P(s); return `${p.d} de ${MESL[p.m-1]} de ${p.y}`; };
   const ps = d.p.map(cs => cs.map(([fecha, capital, interes, ti, fp]) => ({fecha, capital, interes, tipo:ti ? 'interes' : 'normal', pagado:!!fp, fechaPago:fp || null})));
-  app.innerHTML = `<h2 style="font-size:20px;margin-top:8px">Hola, ${esc(d.n)} 👋</h2>
+  app.innerHTML = `<h2 style="font-size:20px;margin-top:8px">Hola, ${esc(d.n)} </h2>
   <p class="hint">${vivo ? `Estado de tu cuenta, actualizado al <b>${largo(d.g)}</b>. Esta página se actualiza sola cuando se registra un pago.` : `Este es el estado de tu cuenta al <b>${largo(d.g)}</b>. Si pagaste después de esa fecha, pide un enlace actualizado.`}</p>
   ${ps.map((cs, i) => {
     const pend = cs.filter(c => !c.pagado), sig = pend[0], venc = pend.filter(c => c.fecha < t);
@@ -1179,7 +1210,7 @@ function pintarEstado(d, vivo){
       <div class="hd"><b>${ps.length > 1 ? `Préstamo ${i+1}` : 'Tu préstamo'}</b>${!pend.length ? '<span class="chip green">Pagado ✓</span>' : venc.length ? '<span class="chip red">Con atraso</span>' : '<span class="chip blue">Al día</span>'}</div>
       ${sig ? `<div class="nextbox"><div><div class="hint">Próxima cuota (${cs.indexOf(sig)+1} de ${cs.length})</div><b>${money(sig.capital + sig.interes)}</b></div>
         <div style="text-align:right"><div class="hint">Fecha límite</div><b style="font-size:17px">${fD(sig.fecha)}</b>${sig.fecha < t ? `<div><span class="chip red">${daysBetween(sig.fecha, t)} días de atraso</span></div>` : ''}</div></div>`
-        : '<p>¡Terminaste de pagar este préstamo! 🎉</p>'}
+        : '<p>¡Terminaste de pagar este préstamo! </p>'}
       ${venc.length > 1 ? `<p class="hint">Tienes ${venc.length} cuotas vencidas por ${money(venc.reduce((s,c) => s + c.capital + c.interes, 0))}.</p>` : ''}
       <div class="bar"><i style="width:${total ? Math.round(pagado / total * 100) : 100}%"></i></div>
       <div class="nums"><span>Pagado <b>${money(pagado)}</b></span><span>Falta <b>${money(total - pagado)}</b></span></div>
@@ -1215,7 +1246,7 @@ async function cargarFirebase(conSesion){
 function pintarNube(){
   const el = document.getElementById('nubeInd'); if (!el) return;
   const sinRed = !navigator.onLine && nubeActiva();
-  el.textContent = sinRed ? '☁ sin internet · se guardará al volver' : ({ok:'☁ sincronizado', subiendo:'☁ guardando…', conectando:'☁ conectando…', error:'☁ error'}[nube.estado] || '');
+  el.textContent = sinRed ? 'Sin internet · se guardará al volver' : ({ok:'Nube: sincronizado', subiendo:'Nube: guardando…', conectando:'Nube: conectando…', error:'Nube: error'}[nube.estado] || '');
   el.style.color = nube.estado === 'error' ? 'var(--red)' : nube.estado === 'ok' && !sinRed ? 'var(--brand)' : '';
 }
 function ponerEstadoNube(e){ nube.estado = e; pintarNube(); if (vista !== 'nuevo' && !dlg.open) render(); }
@@ -1416,7 +1447,7 @@ async function sincronizarDrive(interactivo){
     guardarLocal(); render();
     if (interactivo) toast('Guardado en Google Drive ✓');
   } catch(e){ console.error(e); toast('No se pudo guardar en Drive' + (e.message ? ` (${e.message})` : '')); }
-  finally { sincronizando = false; if (btn()) btn().textContent = '☁ Guardar en Drive ahora'; }
+  finally { sincronizando = false; if (btn()) btn().textContent = 'Guardar en Drive ahora'; }
 }
 
 /* ================= Acciones ================= */
@@ -1439,15 +1470,15 @@ function despagar(lid, cid){
 function exonerar(lid, cid){
   const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), snap = snapshot();
   c.moraExonerada = !c.moraExonerada;
-  L.eventos.push({f:hoy(), t:c.moraExonerada ? `Mora exonerada en la cuota ${posicion(L,c)}` : `Se vuelve a cobrar mora en la cuota ${posicion(L,c)}`});
-  save(); toast(c.moraExonerada ? `${L.cliente}: mora exonerada 💚` : `${L.cliente}: se cobra la mora`, snap);
+  L.eventos.push({f:hoy(), t:c.moraExonerada ? `Mora exoneradaen la cuota ${posicion(L,c)}` : `Se vuelve a cobrar mora en la cuota ${posicion(L,c)}`});
+  save(); toast(c.moraExonerada ? `${L.cliente}: mora exonerada` : `${L.cliente}: se cobra la mora`, snap);
 }
 function quitarMora(lid, cid){
   const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), snap = snapshot();
   if (!c.mora) return;
   L.eventos.push({f:hoy(), t:`Mora de ${money(c.mora)} exonerada en la cuota ${posicion(L,c)}`});
   c.interes = r2(c.interes - c.mora); delete c.mora; c.moraExonerada = true;
-  save(); toast(`${L.cliente}: mora exonerada 💚`, snap);
+  save(); toast(`${L.cliente}: mora exonerada`, snap);
 }
 function anularInteres(lid, cid){
   const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid);
