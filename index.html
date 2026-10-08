@@ -165,7 +165,7 @@ table.edit input[type=date]{width:140px}
 .stat.red{background:var(--red-soft);color:var(--red)}
 .stat.violet{background:var(--violet-soft);color:var(--violet)}
 .stat.gray{background:var(--bg);color:var(--muted)}
-.cli .stats{grid-template-columns:repeat(4,1fr);gap:6px}
+.cli .stats{grid-template-columns:repeat(3,1fr);gap:6px}
 .cli .stat{padding:8px 10px}
 .cli .stat .v{font-size:15px}
 .refi-list{display:flex;flex-direction:column;gap:6px;margin-top:10px;max-height:340px;overflow:auto}
@@ -819,7 +819,7 @@ function cajasCliente(c, corto){
   const col = colchon(c);
   const linea = caja(col > 0 ? 'blue' : 'gray', 'Sin riesgo hasta', col > 0 ? money(col) : 'S/ 0',
     col > 0 ? 'cubierto por lo ganado' : c.capRiesgo ? `faltan ${money(-col)} por recuperar` : 'aún no hay ganancia');
-  if (corto) return `<div class="stats">${prox}${debe}${rec}${linea}</div>`;
+  if (corto) return `<div class="stats">${prox}${debe}${gan}${rec}${linea}${prest}</div>`;
   const ult = up ? caja('gray', 'Último pago', fD(up.fechaPago), money(up.capital + up.interes)) : caja('gray', 'Último pago', '—', 'aún no paga');
   const punt = caja(c.cumpl === null ? 'gray' : c.cumpl >= 90 ? 'green' : c.cumpl >= 60 ? 'amber' : 'red', 'Puntualidad', c.cumpl === null ? '—' : c.cumpl + '%', `${c.aTiempo} a tiempo · ${c.conAtraso} con atraso`);
   return `<div class="stats">${prox}${debe}${rec}${linea}${gan}${prest}${ult}${punt}</div>`;
