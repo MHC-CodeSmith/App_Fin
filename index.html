@@ -947,6 +947,7 @@ function datosClientes(){
       porCobrarInt:r2(pend.reduce((s, c) => s + c.interes, 0)),
       capRiesgo:r2(pendTodo.reduce((s, c) => s + c.capital, 0)),
       congelado:r2(cong.reduce((s, c) => s + c.capital + c.interes, 0)),
+      congeladoCap:r2(cong.reduce((s, c) => s + c.capital, 0)),
       proximas:pend.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)),
       ultimoPago:cs.filter(c => c.pagado && c.fechaPago).sort((a, b) => b.fechaPago.localeCompare(a.fechaPago))[0] || null,
       sem:semaforo(delAnio),
@@ -982,12 +983,19 @@ function cajasCliente(c, corto){
     col > 0 ? `interés de todos los años ${money(c.ganadoTotal)} − debe ${money(c.capRiesgo)}` : c.capRiesgo ? `faltan ${money(-col)} por recuperar` : 'aún no hay ganancia',
     `Hasta cuánto le puedes prestar sin arriesgar tu propio dinero. Es lo que ya ganaste de interés con ${quien} desde el inicio (${money(c.ganadoTotal)}) menos el capital que todavía te debe (${money(c.capRiesgo)}): ${money(c.ganadoTotal)} − ${money(c.capRiesgo)} = ${money(col)}. `
     + (col > 0 ? `Si le prestas hasta ${money(col)} y no te devolviera nada, no perderías tu capital: solo dejarías de ganar parte de lo que ya ganaste con ${quien}.` : `Hoy está en 0: todavía no ganaste lo suficiente con ${quien} para cubrir lo que te debe, así que cualquier préstamo nuevo arriesga tu capital.`));
-  if (corto) return `<div class="stats">${prox}${debe}${gan}${rec}${linea}${prest}</div>`;
+  // Deuda congelada: capital que está parado (posible pérdida) y la pérdida neta descontando lo ya ganado
+  const perdNeta = r2(c.congeladoCap - c.ganadoTotal);
+  const perd = c.congeladoCap ? caja('red', 'Capital congelado', money(c.congeladoCap),
+    perdNeta > 0 ? `pérdida neta ${money(perdNeta)} (ya ganaste ${money(c.ganadoTotal)})` : `cubierto por lo ganado (${money(c.ganadoTotal)})`,
+    `Capital que le prestaste a ${quien} y que está en deudas congeladas: ${money(c.congeladoCap)} (sin contar el interés que dejó de pagar). `
+    + (perdNeta > 0 ? `Como ya ganaste ${money(c.ganadoTotal)} de interés con ${quien} desde el inicio, si nunca te paga lo congelado tu pérdida real sería ${money(c.congeladoCap)} − ${money(c.ganadoTotal)} = ${money(perdNeta)}.`
+      : `Ya ganaste ${money(c.ganadoTotal)} de interés con ${quien}, más que ese capital: aunque no te pague lo congelado, no pierdes dinero.`)) : '';
+  if (corto) return `<div class="stats">${perd}${prox}${debe}${gan}${rec}${linea}${prest}</div>`;
   const ayUlt = 'El último día en que te pagó algo (cuota, interés o abono) y cuánto fue.';
   const ult = up ? caja('gray', 'Último pago', fD(up.fechaPago), money(up.capital + up.interes), ayUlt) : caja('gray', 'Último pago', '—', 'aún no paga', ayUlt);
   const punt = caja(nivel(c.cumpl).cls, 'Cumplimiento' + sufAnio(), c.cumpl === null ? '—' : `${nivel(c.cumpl).t} · ${c.cumpl}%`, resumenSem(c.sem),
     `Cómo paga ${quien} ${anio}, cuota por cuota: a tiempo o hasta ${toleranciaDias()} días tarde cuenta 100 %; solo el interés a tiempo, 75 %; tarde (más de ${toleranciaDias()} días), 25 %; sin pagar, 0 %. Cumple: 85 % o más · Regular: 60 % o más · Riesgoso: menos de 60 %.`);
-  return `<div class="stats">${prox}${debe}${rec}${linea}${gan}${prest}${ult}${punt}</div>`;
+  return `<div class="stats">${perd}${prox}${debe}${rec}${linea}${gan}${prest}${ult}${punt}</div>`;
 }
 function explicar(el){
   dialogo(el.dataset.titulo, `<div style="padding:16px;line-height:1.55">${el.dataset.ayuda}</div>`, () => {}, 'Entendido');
