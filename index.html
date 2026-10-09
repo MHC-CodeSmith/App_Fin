@@ -171,6 +171,8 @@ table.edit input[type=date]{width:140px}
 .stat.red{background:var(--red-soft);color:var(--red)}
 .stat.violet{background:var(--violet-soft);color:var(--violet)}
 .stat.gray{background:var(--bg);color:var(--muted)}
+.stat.ayuda{cursor:help}
+.ico-ayuda{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid currentColor;font-size:9px;opacity:.7;vertical-align:1px;margin-left:2px}
 .cli .stats{grid-template-columns:repeat(3,1fr);gap:6px}
 .cli .stat{padding:8px 10px}
 .cli .stat .v{font-size:15px}
@@ -960,20 +962,34 @@ function verCliente(i){ recordar(); clienteSel = listaCli[i].k; render(); window
 const colchon = c => r2(c.ganadoTotal - c.capRiesgo);
 function cajasCliente(c, corto){
   const t = hoy(), sig = c.proximas[0], up = c.ultimoPago;
-  const caja = (cls, l, v, sub) => `<div class="stat ${cls}"><div class="l">${l}</div><div class="v">${v}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
-  const prox = sig ? caja(sig.fecha < t ? 'red' : 'violet', 'Próximo pago', fD(sig.fecha), `${money(totalHoy(sig))}${sig.fecha < t ? ` · ${daysBetween(sig.fecha, t)} días tarde` : sig.fecha === t ? ' · hoy' : ` · en ${daysBetween(t, sig.fecha)} días`}`)
-    : caja('gray', 'Próximo pago', '—', 'sin cuotas pendientes');
-  const debe = caja(c.atrasado ? 'red' : c.debe ? 'amber' : 'gray', 'Debe ahora', money(c.debe), (c.debe ? `${money(c.porCobrarInt)} de interés` : 'sin deuda') + (c.congelado ? ` · ${money(c.congelado)} congelado` : ''));
-  const gan = caja('green', 'Interés ganado' + sufAnio(), money(c.ganado), corto ? '' : 'ya cobrado');
-  const prest = caja('blue', 'Prestado' + sufAnio(), money(c.prestado), corto ? '' : `en ${c.nPrestados} préstamo${c.nPrestados !== 1 ? 's' : ''}`);
-  const rec = caja('green', 'Recaudado' + sufAnio(), money(c.cobrado), `${money(c.ganado)} de interés`);
+  // Cada caja explica qué significa: al pasar el mouse (title) y, en la ficha, al tocarla.
+  const caja = (cls, l, v, sub, ayuda) => `<div class="stat ${cls}${ayuda ? ' ayuda' : ''}" ${ayuda ? `title="${esc(ayuda)}" data-ayuda="${esc(ayuda)}" data-titulo="${esc(l)}" ${corto ? '' : 'onclick="explicar(this)"'}` : ''}>
+    <div class="l">${l}${ayuda ? ' <span class="ico-ayuda">?</span>' : ''}</div><div class="v">${v}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  const quien = 'esta persona', anio = anioFoco === 'todos' ? 'en todos los años' : `en ${anioFoco}`;
+  const prox = sig ? caja(sig.fecha < t ? 'red' : 'violet', 'Próximo pago', fD(sig.fecha), `${money(totalHoy(sig))}${sig.fecha < t ? ` · ${daysBetween(sig.fecha, t)} días tarde` : sig.fecha === t ? ' · hoy' : ` · en ${daysBetween(t, sig.fecha)} días`}`, 'La siguiente cuota que vence: su fecha límite y cuánto hay que pagar (incluye la mora si ya está atrasada).')
+    : caja('gray', 'Próximo pago', '—', 'sin cuotas pendientes', 'La siguiente cuota que vence: su fecha límite y cuánto hay que pagar (incluye la mora si ya está atrasada).');
+  const debe = caja(c.atrasado ? 'red' : c.debe ? 'amber' : 'gray', 'Debe ahora', money(c.debe), (c.debe ? `${money(c.porCobrarInt)} de interés` : 'sin deuda') + (c.congelado ? ` · ${money(c.congelado)} congelado` : ''),
+    `Todo lo que ${quien} tiene pendiente hoy: capital + interés de las cuotas que aún no pagó. No incluye las deudas congeladas${c.congelado ? ` (${money(c.congelado)})` : ''}.`);
+  const gan = caja('green', 'Interés ganado' + sufAnio(), money(c.ganado), corto ? '' : 'ya cobrado',
+    `Tu ganancia con ${quien} ${anio}: el interés (y la mora) de las cuotas que ya te pagó. Se cuenta por la fecha límite de cada cuota.`);
+  const prest = caja('blue', 'Prestado' + sufAnio(), money(c.prestado), corto ? '' : `en ${c.nPrestados} préstamo${c.nPrestados !== 1 ? 's' : ''}`,
+    `La suma de los préstamos que le diste a ${quien} ${anio} (el monto de cada préstamo, aunque se haya pagado en varias cuotas).`);
+  const rec = caja('green', 'Recaudado' + sufAnio(), money(c.cobrado), `${money(c.ganado)} de interés`,
+    `Todo el dinero que ${quien} ya te devolvió ${anio}: capital + interés. De eso, ${money(c.ganado)} es tu ganancia (interés) y ${money(r2(c.cobrado - c.ganado))} es tu capital que regresó.`);
   const col = colchon(c);
   const linea = caja(col > 0 ? 'blue' : 'gray', 'Sin riesgo hasta', col > 0 ? money(col) : 'S/ 0',
-    col > 0 ? `ganado ${money(c.ganadoTotal)} − debe ${money(c.capRiesgo)}` : c.capRiesgo ? `faltan ${money(-col)} por recuperar` : 'aún no hay ganancia');
+    col > 0 ? `ganado ${money(c.ganadoTotal)} − debe ${money(c.capRiesgo)}` : c.capRiesgo ? `faltan ${money(-col)} por recuperar` : 'aún no hay ganancia',
+    `Hasta cuánto le puedes prestar sin arriesgar tu propio dinero. Es lo que ya ganaste de interés con ${quien} desde el inicio (${money(c.ganadoTotal)}) menos el capital que todavía te debe (${money(c.capRiesgo)}): ${money(c.ganadoTotal)} − ${money(c.capRiesgo)} = ${money(col)}. `
+    + (col > 0 ? `Si le prestas hasta ${money(col)} y no te devolviera nada, no perderías tu capital: solo dejarías de ganar parte de lo que ya ganaste con ${quien}.` : `Hoy está en 0: todavía no ganaste lo suficiente con ${quien} para cubrir lo que te debe, así que cualquier préstamo nuevo arriesga tu capital.`));
   if (corto) return `<div class="stats">${prox}${debe}${gan}${rec}${linea}${prest}</div>`;
-  const ult = up ? caja('gray', 'Último pago', fD(up.fechaPago), money(up.capital + up.interes)) : caja('gray', 'Último pago', '—', 'aún no paga');
-  const punt = caja(nivel(c.cumpl).cls, 'Cumplimiento' + sufAnio(), c.cumpl === null ? '—' : `${nivel(c.cumpl).t} · ${c.cumpl}%`, resumenSem(c.sem));
+  const ayUlt = 'El último día en que te pagó algo (cuota, interés o abono) y cuánto fue.';
+  const ult = up ? caja('gray', 'Último pago', fD(up.fechaPago), money(up.capital + up.interes), ayUlt) : caja('gray', 'Último pago', '—', 'aún no paga', ayUlt);
+  const punt = caja(nivel(c.cumpl).cls, 'Cumplimiento' + sufAnio(), c.cumpl === null ? '—' : `${nivel(c.cumpl).t} · ${c.cumpl}%`, resumenSem(c.sem),
+    `Cómo paga ${quien} ${anio}, cuota por cuota: a tiempo o hasta ${toleranciaDias()} días tarde cuenta 100 %; solo el interés a tiempo, 75 %; tarde (más de ${toleranciaDias()} días), 25 %; sin pagar, 0 %. Cumple: 85 % o más · Regular: 60 % o más · Riesgoso: menos de 60 %.`);
   return `<div class="stats">${prox}${debe}${rec}${linea}${gan}${prest}${ult}${punt}</div>`;
+}
+function explicar(el){
+  dialogo(el.dataset.titulo, `<div style="padding:16px;line-height:1.55">${el.dataset.ayuda}</div>`, () => {}, 'Entendido');
 }
 function chipCliente(c){ return !c.debe && c.congelado ? '<span class="chip gray">Deuda congelada</span>' : c.debe ? (c.atrasado ? '<span class="chip red">Atrasado</span>' : '<span class="chip blue">Debe</span>') : '<span class="chip green">Sin deuda</span>'; }
 
