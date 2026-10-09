@@ -171,8 +171,7 @@ table.edit input[type=date]{width:140px}
 .stat.red{background:var(--red-soft);color:var(--red)}
 .stat.violet{background:var(--violet-soft);color:var(--violet)}
 .stat.gray{background:var(--bg);color:var(--muted)}
-.stat.ayuda{cursor:help}
-.ico-ayuda{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid currentColor;font-size:9px;opacity:.7;vertical-align:1px;margin-left:2px}
+.ico-ayuda{cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid currentColor;font-size:9px;opacity:.7;vertical-align:1px;margin-left:2px}
 .cli .stats{grid-template-columns:repeat(3,1fr);gap:6px}
 .cli .stat{padding:8px 10px}
 .cli .stat .v{font-size:15px}
@@ -963,8 +962,9 @@ const colchon = c => r2(c.ganadoTotal - c.capRiesgo);
 function cajasCliente(c, corto){
   const t = hoy(), sig = c.proximas[0], up = c.ultimoPago;
   // Cada caja explica qué significa: al pasar el mouse (title) y, en la ficha, al tocarla.
-  const caja = (cls, l, v, sub, ayuda) => `<div class="stat ${cls}${ayuda ? ' ayuda' : ''}" ${ayuda ? `title="${esc(ayuda)}" data-ayuda="${esc(ayuda)}" data-titulo="${esc(l)}" ${corto ? '' : 'onclick="explicar(this)"'}` : ''}>
-    <div class="l">${l}${ayuda ? ' <span class="ico-ayuda">?</span>' : ''}</div><div class="v">${v}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  // Solo el "?" abre la explicación; el resto de la caja se puede seleccionar y copiar.
+  const caja = (cls, l, v, sub, ayuda) => `<div class="stat ${cls}" ${ayuda ? `data-ayuda="${esc(ayuda)}" data-titulo="${esc(l)}"` : ''}>
+    <div class="l">${l}${ayuda ? ` <span class="ico-ayuda" role="button" tabindex="0" title="${esc(ayuda)}" onclick="event.stopPropagation();explicar(this.closest('.stat'))">?</span>` : ''}</div><div class="v">${v}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
   const quien = 'esta persona', anio = anioFoco === 'todos' ? 'en todos los años' : `en ${anioFoco}`;
   const prox = sig ? caja(sig.fecha < t ? 'red' : 'violet', 'Próximo pago', fD(sig.fecha), `${money(totalHoy(sig))}${sig.fecha < t ? ` · ${daysBetween(sig.fecha, t)} días tarde` : sig.fecha === t ? ' · hoy' : ` · en ${daysBetween(t, sig.fecha)} días`}`, 'La siguiente cuota que vence: su fecha límite y cuánto hay que pagar (incluye la mora si ya está atrasada).')
     : caja('gray', 'Próximo pago', '—', 'sin cuotas pendientes', 'La siguiente cuota que vence: su fecha límite y cuánto hay que pagar (incluye la mora si ya está atrasada).');
