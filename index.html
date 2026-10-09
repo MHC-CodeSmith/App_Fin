@@ -1073,12 +1073,23 @@ function dlgObs(lid, cid){
   dialogo(`Observación · ${L.cliente} · ${fDa(q.fecha)}`, `<div class="form"><label class="full">Observación<textarea name="o" rows="5" placeholder="Escribe aquí lo que quieras recordar de esta cuota">${esc(q.obs || '')}</textarea></label></div>`,
     b => { const s = snapshot(), o = val(b, 'o').trim(); if (o) q.obs = o; else delete q.obs; save(); toast(o ? 'Observación guardada' : 'Observación borrada', s); });
 }
-function estadoFila(L, q, fx){
-  const t = hoy();
-  return q.tipo === 'refi' ? `<span class="chip blue">Refinanciado · ${money(q.movido || 0)}</span>`
-    : q.tipo === 'abono' ? `<span class="chip violet">Abono</span>`
-    : q.pagado ? `<span class="chip green">Pagó ${fx(q.fechaPago)}</span> ${chipEstadoCumpl(q)}`
-    : esCongelado(L) ? '<span class="chip gray">Congelado</span>' : q.fecha < t ? `<span class="chip red">Vencida</span> ${chipEstadoCumpl(q)}` : '<span class="chip gray">Pendiente</span>';
+/* Una sola etiqueta por cuota: cómo y cuándo pagó, con el color del semáforo. */
+function estadoFila(L, q, fx = fD){
+  const t = hoy(), dias = d => `${d} día${d === 1 ? '' : 's'}`;
+  if (q.tipo === 'refi') return `<span class="chip blue">Refinanciado · ${money(q.movido || 0)}</span>`;
+  if (q.tipo === 'abono') return `<span class="chip violet">Abono ${fx(q.fechaPago)}</span>`;
+  if (q.pagado){
+    const e = estadoCumpl(q), que = q.tipo === 'interes' ? 'Pagó interés' : 'Pagó';
+    if (!e) return `<span class="chip green">${que} ${fx(q.fechaPago)}</span>`;
+    if (e.k === 'tarde') return `<span class="chip amber">${que} ${fx(q.fechaPago)} · fuera de fecha (${dias(e.d)})</span>`;
+    if (e.k === 'interes') return `<span class="chip blue">${que} ${fx(q.fechaPago)}${e.d ? ` · +${dias(e.d)}` : ' · a tiempo'}</span>`;
+    if (e.k === 'tol') return `<span class="chip green">${que} ${fx(q.fechaPago)} · +${dias(e.d)} (tolerancia)</span>`;
+    return `<span class="chip green">${que} ${fx(q.fechaPago)} · a tiempo</span>`;
+  }
+  if (esCongelado(L)) return '<span class="chip gray">Congelado</span>';
+  if (q.fecha < t){ const d = daysBetween(q.fecha, t), e = estadoCumpl(q);
+    return e?.k === 'nopago' ? `<span class="chip red">No pagó · ${dias(d)}</span>` : `<span class="chip amber">Vencida · ${dias(d)} (tolerancia)</span>`; }
+  return q.fecha === t ? '<span class="chip amber">Vence hoy</span>' : '<span class="chip gray">Pendiente</span>';
 }
 /* Cuotas de un préstamo con columnas nombradas y totales, para corroborar la cuenta. */
 function tablaPrestamo(L){
@@ -1136,7 +1147,7 @@ let mesSel = hoy().slice(0,7), filtroMes = 'todos';
 function moverMes(k){ recordar(); mesSel = addMonths(mesSel + '-01', k).slice(0,7); render(); }
 function filaMes(L, c){
   const t = hoy(), st = c.tipo === 'refi' ? 'refi' : c.tipo === 'abono' ? 'abono' : !c.pagado && esCongelado(L) ? 'cong' : c.pagado ? (c.tipo === 'interes' ? 'int' : 'ok') : c.fecha < t ? 'late' : 'pend';
-  const chip = c.pagado && c.tipo !== 'abono' && estadoCumpl(c) && estadoCumpl(c).k !== 'ok' ? `<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span> ${chipEstadoCumpl(c)}` : {ok:`<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span>`, int:`<span class="chip blue">✓ Solo interés ${fD(c.fechaPago)}</span>`,
+  const chip = c.pagado ? estadoFila(L, c) : {ok:`<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span>`, int:`<span class="chip blue">✓ Solo interés ${fD(c.fechaPago)}</span>`,
     late:`<span class="chip red">Atrasado ${daysBetween(c.fecha, t)} d</span>`, cong:'<span class="chip gray">Congelado</span>', pend:'<span class="chip gray">Pendiente</span>', refi:'<span class="chip blue">Refinanciado</span>', abono:`<span class="chip violet">Abono ${fD(c.fechaPago)}</span>`}[st];
   return `<div class="row mrow st-${st}">${avatar(L.cliente)}
     <div class="who"><b class="link" onclick="irCliente('${L.id}')">${esc(L.cliente)}</b>${L.modo === 'pct' ? ` <span class="hint">(${num(L.valor)}%)</span>` : ''}${chipEtq(L)} <span class="chip gray">${posicion(L, c)}</span>
