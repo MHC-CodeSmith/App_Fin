@@ -319,7 +319,7 @@ function crearPrestamo(o){
       return {id:uid(), fecha, capital:p.capital, interes:p.interes, tipo:'normal', pagado:pag, fechaPago: pag ? fecha : null};
     });
   }
-  return {id:uid(), cliente:o.cliente.trim(), apodo:(o.apodo||'').trim(), tel:(o.tel||'').trim(), ingreso:+o.ingreso || 0, nota:(o.nota||'').trim(),
+  return {id:uid(), cliente:o.cliente.trim(), fechaPrestamo:o.fechaPrestamo || '', apodo:(o.apodo||'').trim(), tel:(o.tel||'').trim(), ingreso:+o.ingreso || 0, nota:(o.nota||'').trim(),
     capital:o.capital, modo:o.modo, valor:o.valor, meses:o.meses, interesTotal:r2(cuotas.reduce((s,c) => s + c.interes, 0)), dia:P(cuotas[0]?.fecha || o.primera).d,
     formula, creado:hoy(), cuotas, adjuntos:[], eventos:[{f:hoy(), t:'Préstamo registrado'}]};
 }
@@ -621,7 +621,7 @@ function tablaCuotas(L){
 
 /* ---------- Nuevo préstamo / Corregir ---------- */
 const ACCEPT = 'image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx';
-const nuevoBorrador = () => ({cliente:'', apodo:'', tel:'', ingreso:'', capital:1000, modo:'pct', valor:16, meses:2, primera:addMonths(hoy(),1), pagadas:0, nota:'',
+const nuevoBorrador = () => ({cliente:'', apodo:'', tel:'', ingreso:'', fechaPrestamo:hoy(), capital:1000, modo:'pct', valor:16, meses:2, primera:addMonths(hoy(),1), pagadas:0, nota:'',
   personalizado:false, filas:null, editId:null, archivos:[], tipo:'nuevo', refi:{ids:[], interes:null, abono:0, q:''}, clienteAuto:true});
 let borrador = nuevoBorrador();
 const generarFilas = () => crearPrestamo({...borrador, cliente:'-', filas:null}).cuotas.map(c => ({fecha:c.fecha, capital:c.capital, interes:c.interes, tipo:'normal', pagado:c.pagado, fechaPago:c.fechaPago}));
@@ -644,6 +644,7 @@ function vNuevo(){
       <option value="mes" ${b.modo==='mes'?'selected':''}>Monto fijo por mes (S/)</option></select></label>
     <label><span id="lblValor"></span><input name="valor" type="number" min="0" step="any" value="${b.valor}"></label>
     <label>Meses<input name="meses" type="number" min="1" step="1" value="${b.meses}"></label>
+    <label>Fecha en que se prestó<input name="fechaPrestamo" type="date" value="${b.fechaPrestamo || ''}"><span class="hint" style="font-weight:400">El día que lo pidió (opcional)</span></label>
     <label>Primera fecha límite<input name="primera" type="date" value="${b.primera}"></label>
     <label id="lblPagadas">Cuotas ya pagadas<input name="pagadas" type="number" min="0" step="1" value="${b.pagadas}"><span class="hint" style="font-weight:400">Para registrar préstamos que ya venían de antes</span></label>
     <label class="full">Nota<textarea name="nota" rows="2" placeholder="Opcional">${esc(b.nota)}</textarea></label>
@@ -766,7 +767,7 @@ function leerBorrador(){
   const f = document.getElementById('fNuevo'), v = n => f.querySelector(`[name=${n}]`).value;
   const pers = f.querySelector('[name=personalizado]').checked;
   Object.assign(borrador, {cliente:v('cliente'), apodo:v('apodo'), tel:v('tel'), ingreso:+v('ingreso')||0, capital:+v('capital')||0, modo:v('modo'), valor:+v('valor')||0,
-    meses:Math.max(1,parseInt(v('meses'))||1), primera:v('primera')||hoy(), pagadas:Math.max(0,parseInt(v('pagadas'))||0), nota:v('nota'), personalizado:pers});
+    meses:Math.max(1,parseInt(v('meses'))||1), fechaPrestamo:v('fechaPrestamo'), primera:v('primera')||hoy(), pagadas:Math.max(0,parseInt(v('pagadas'))||0), nota:v('nota'), personalizado:pers});
   if (borrador.tipo === 'refi' && !borrador.editId) borrador.capital = baseRefi();
   if (pers && !borrador.filas) borrador.filas = generarFilas();
   if (!pers) borrador.filas = null;
@@ -825,7 +826,7 @@ function agregarFila(){
 function corregir(lid){
   const L = buscarL(lid);
   borrador = {...nuevoBorrador(), cliente:L.cliente, apodo:L.apodo || '', tel:L.tel, ingreso:L.ingreso || '', capital:L.capital, modo:L.modo, valor:L.valor,
-    meses:L.meses, primera:L.cuotas[0]?.fecha || hoy(), nota:L.nota, personalizado:true, filas:L.cuotas.map(c => ({...c})), editId:L.id};
+    meses:L.meses, fechaPrestamo:L.fechaPrestamo || '', primera:L.cuotas[0]?.fecha || hoy(), nota:L.nota, personalizado:true, filas:L.cuotas.map(c => ({...c})), editId:L.id};
   vista = 'nuevo'; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === 'nuevo')); render(); window.scrollTo(0,0);
 }
 async function guardarNuevo(){
@@ -976,7 +977,7 @@ function vCliente(k){
     const e = estadoPrestamo(L), ini = L.cuotas[0]?.fecha, fin = L.cuotas.at(-1)?.fecha, fuera = L.cuotas.filter(q => !enAnio(q.fecha)).length;
     return `<div class="card tl">
       <div class="hd"><div><b>${etiqueta(L).n ? `${textoEtq(L)} · ` : ''}${ini ? nombreMes(ini.slice(0,7)) : ''}${fin && fin.slice(0,7) !== ini?.slice(0,7) ? ' → ' + nombreMes(fin.slice(0,7)) : ''}</b>
-        <div class="hint">${money(L.capital)}${L.modo === 'pct' ? ` al ${num(L.valor)}%` : ''} · ${L.cuotas.length} cuota${L.cuotas.length > 1 ? 's' : ''}${fuera ? ` · ${fuera} fuera de ${anioFoco}` : ''}</div></div>
+        <div class="hint">Prestado ${money(L.capital)}${L.modo === 'pct' ? ` al ${num(L.valor)}%` : ''}${L.fechaPrestamo ? ` el ${fDa(L.fechaPrestamo)}` : ''} · ${L.cuotas.length} cuota${L.cuotas.length > 1 ? 's' : ''}${fuera ? ` · ${fuera} fuera de ${anioFoco}` : ''}</div></div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="chip ${e.cls}">${e.t}</span>${chipCumpl(cumplimiento(L.cuotas))}</div></div>
       <div class="formula">${esc(L.formula).replace(/\n/g,'<br>')}</div>
       ${tablaPrestamo(L)}
@@ -1032,20 +1033,22 @@ function tablaHistorial(c){
   const sum = {cap:0, int:0, pag:0, pend:0};
   for (const {L, q} of filas){
     const m = q.fecha.slice(0,7), tot = r2(q.capital + q.interes);
-    if (m !== mes){ mes = m; html += `<tr class="mes-row"><td colspan="8">${nombreMes(m)}</td></tr>`; }
+    if (m !== mes){ mes = m; html += `<tr class="mes-row"><td colspan="9">${nombreMes(m)}</td></tr>`; }
     if (q.tipo !== 'refi'){ sum.cap += q.capital; sum.int += q.interes; if (q.pagado) sum.pag += tot; else sum.pend += tot; }
     const estado = estadoFila(L, q, fx);
     html += `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t ? 'late' : ''}">
       <td>${fx(q.fecha)}</td><td>${textoEtq(L)}${L.modo === 'pct' ? ` <span class="hint">${num(L.valor)}%</span>` : ''}${etiquetaTipo(q)}</td>
+      <td class="n">${num(L.capital)}${L.cuotas.length > 1 ? `<div class="hint">cuota ${posicion(L, q)}</div>` : ''}</td>
       <td class="n">${q.tipo === 'refi' ? '—' : num(q.capital)}</td><td class="n">${q.tipo === 'refi' ? '—' : num(q.interes)}</td><td class="n"><b>${q.tipo === 'refi' ? '—' : num(tot)}</b></td>
       <td>${estado}</td>
+      <td>${L.fechaPrestamo ? fDa(L.fechaPrestamo) : '<span class="hint">—</span>'}</td>
       <td style="white-space:nowrap;text-align:right">${q.tipo === 'refi' ? '' : q.tipo === 'abono' ? `<button class="btn sm" onclick="anularAbono('${L.id}','${q.id}')">Anular</button>`
         : `${!q.pagado ? `<button class="btn sm pri" onclick="pagar('${L.id}','${q.id}')">Pagó</button> ` : ''}<button class="btn sm" onclick="dlgCuota('${L.id}','${q.id}')" title="Editar">✎</button> <button class="btn sm dan" onclick="borrarCuota('${L.id}','${q.id}')" title="Borrar">✕</button>`}</td></tr>`;
   }
-  return `<div class="card"><div class="tblwrap"><table class="hist"><thead><tr><th>Fecha límite</th><th>Préstamo</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th><th>Estado</th><th></th></tr></thead>
+  return `<div class="card"><div class="tblwrap"><table class="hist"><thead><tr><th>Fecha límite</th><th>Préstamo</th><th class="n" title="Monto total del préstamo">Prestado</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th><th>Estado</th><th title="Día en que se prestó">Pedido el</th><th></th></tr></thead>
     <tbody>${html}</tbody>
-    <tfoot><tr><td colspan="2"><b>Total ${anioFoco === 'todos' ? '' : anioFoco}</b></td><td class="n"><b>${num(r2(sum.cap))}</b></td><td class="n"><b>${num(r2(sum.int))}</b></td><td class="n"><b>${num(r2(sum.cap + sum.int))}</b></td>
-      <td colspan="2" class="hint">Pagado <b>${money(sum.pag)}</b> · Pendiente <b>${money(sum.pend)}</b></td></tr></tfoot></table></div></div>`;
+    <tfoot><tr><td colspan="3"><b>Total ${anioFoco === 'todos' ? '' : anioFoco}</b></td><td class="n"><b>${num(r2(sum.cap))}</b></td><td class="n"><b>${num(r2(sum.int))}</b></td><td class="n"><b>${num(r2(sum.cap + sum.int))}</b></td>
+      <td colspan="3" class="hint">Pagado <b>${money(sum.pag)}</b> · Pendiente <b>${money(sum.pend)}</b></td></tr></tfoot></table></div></div>`;
 }
 function nuevoParaCliente(){
   const c = datosClientes().find(x => x.k === clienteSel); if (!c) return;
