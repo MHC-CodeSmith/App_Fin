@@ -377,6 +377,7 @@ function extrasInteres(L){ return L.cuotas.filter(c => c.tipo === 'interes').len
 function estadoPrestamo(L){
   const p = pendientes(L);
   if (!p.length) return L.refinanciadoEn ? {t:'Refinanciado', cls:'blue'} : {t:'Pagado', cls:'green'};
+  if (L.congelado) return {t:'Congelado', cls:'gray'};
   if (p[0].fecha < hoy()) return {t:'Atrasado', cls:'red'};
   return {t:'Al día', cls:'blue'};
 }
@@ -396,6 +397,7 @@ function moraDe(c, alDia = hoy()){
 }
 const totalHoy = c => r2(c.capital + c.interes + moraDe(c));
 function chipMora(L, c){
+  if (L.congelado && !c.pagado) return '';
   if (c.pagado) return c.mora ? `<span class="chip amber">incl. mora ${num(c.mora)}</span> <button class="btn sm" onclick="quitarMora('${L.id}','${c.id}')">Quitar mora</button>` : '';
   if (c.tipo !== 'normal' || c.fecha >= hoy() || !moraDia()) return '';
   if (c.moraExonerada) return `<span class="chip gray">Mora exonerada</span> <button class="btn sm" onclick="exonerar('${L.id}','${c.id}')">Cobrar mora</button>`;
@@ -526,7 +528,7 @@ function filaCobro(L, c){
 function vInicio(){
   const t = hoy(), mes = t.slice(0,7), prox = addMonths(t,1).slice(0,7);
   const items = [];
-  S.prestamos.forEach(L => pendientes(L).forEach(c => items.push({L,c})));
+  S.prestamos.filter(L => !L.congelado).forEach(L => pendientes(L).forEach(c => items.push({L,c})));
   items.sort((a,b) => a.c.fecha.localeCompare(b.c.fecha));
   const atras = items.filter(x => x.c.fecha < t);
   const esteMes = items.filter(x => x.c.fecha >= t && mesKey(x.c.fecha) === mes);
@@ -536,7 +538,7 @@ function vInicio(){
   const porCobrarMes = [...atras, ...esteMes].reduce((s,x) => s + x.c.capital + x.c.interes, 0);
   let cobradoMes = 0, intMes = 0;
   S.prestamos.forEach(L => L.cuotas.forEach(c => { if (c.pagado && mesKey(c.fecha) === mes){ cobradoMes += c.capital+c.interes; intMes += c.interes; }}));
-  const activos = S.prestamos.filter(L => pendientes(L).length).length;
+  const activos = S.prestamos.filter(L => !L.congelado && pendientes(L).length).length;
   const nombreMes = m => { const p = P(m+'-01'); return MESES[p.m-1]; };
 
   const grupo = (titulo, arr, cls) => arr.length ? `<div class="grp ${cls||''}">${titulo} · ${money(arr.reduce((s,x)=>s+totalHoy(x.c),0))}</div><div class="card list">${arr.map(x=>filaCobro(x.L,x.c)).join('')}</div>` : '';
@@ -586,7 +588,7 @@ function tarjeta(L){
       <button class="btn" onclick="toggle('${L.id}')">${abierto ? 'Ocultar' : 'Ver cuotas'}${nAdj ? ` · ${nAdj} archivo${nAdj > 1 ? 's' : ''}` : ''}</button>
       <button class="btn wa" onclick="enviarEstado('${L.id}')">Enviar estado</button>
       <button class="btn" onclick="corregir('${L.id}')">Corregir</button>
-      ${pend.length ? `<button class="btn" onclick="dlgAbono('${L.id}')">Abono</button><button class="btn warn" onclick="refinanciar('${L.id}')">Refinanciar</button>` : ''}
+      ${pend.length ? `<button class="btn" onclick="dlgAbono('${L.id}')">Abono</button><button class="btn warn" onclick="refinanciar('${L.id}')">Refinanciar</button><button class="btn" onclick="congelar('${L.id}')">${L.congelado ? 'Descongelar' : 'Congelar'}</button>` : ''}
       <button class="btn dan" onclick="eliminar('${L.id}')">Eliminar</button>
     </div>
     ${abierto ? tablaCuotas(L) + panelAdjuntos(L) : ''}
@@ -655,7 +657,7 @@ function vNuevo(){
 /* ---- Refinanciar / juntar deudas ---- */
 function deudasPendientes(){
   const t = hoy();
-  return S.prestamos.filter(L => pendientes(L).length).map(L => {
+  return S.prestamos.filter(L => !L.congelado && pendientes(L).length).map(L => {
     const pend = pendientes(L), venc = pend.filter(c => c.fecha <= t);
     return {L, cap:r2(pend.reduce((s, c) => s + c.capital, 0)), intPend:r2(pend.reduce((s, c) => s + c.interes, 0)),
       intVenc:r2(venc.reduce((s, c) => s + c.interes + moraDe(c), 0)), desde:pend[0].fecha};
@@ -868,7 +870,9 @@ function datosClientes(){
     todos = todos.slice().sort(porCreacion);
     // Lo del año en foco: préstamos, cobros (por fecha de pago) y puntualidad (por fecha límite).
     // Deuda, próximo pago y riesgo siempre se calculan con todo, porque son el estado de hoy.
-    const ps = todos.filter(prestamoEnAnio), cs = todos.flatMap(L => L.cuotas), pend = cs.filter(c => !c.pagado);
+    const ps = todos.filter(prestamoEnAnio), cs = todos.flatMap(L => L.cuotas), pendTodo = cs.filter(c => !c.pagado);
+    // Deuda congelada: queda registrada y cuenta para el riesgo, pero no aparece como deuda del día.
+    const pend = todos.filter(L => !L.congelado).flatMap(L => pendientes(L)), cong = todos.filter(L => L.congelado).flatMap(L => pendientes(L));
     const pagadas = cs.filter(c => c.pagado && enAnio(c.fecha)), delAnio = cs.filter(c => enAnio(c.fecha));
     const ult = todos.at(-1), ultimoDe = f => todos.map(f).filter(Boolean).at(-1);
     return {k, prestamos:ps, todos, nombre:ult.cliente, apodo:ultimoDe(L => L.apodo) || '', tel:ultimoDe(L => L.tel) || '', ingreso:ultimoDe(L => L.ingreso) || 0,
@@ -878,10 +882,11 @@ function datosClientes(){
       ganado:r2(pagadas.reduce((s, c) => s + c.interes, 0)),
       ganadoTotal:r2(cs.filter(c => c.pagado).reduce((s, c) => s + c.interes, 0)),
       debe:r2(pend.reduce((s, c) => s + c.capital + c.interes, 0)),
-      atrasado:pend.some(c => c.fecha < hoy()), activos:todos.filter(L => pendientes(L).length).length,
+      atrasado:pend.some(c => c.fecha < hoy()), activos:todos.filter(L => !L.congelado && pendientes(L).length).length,
       cumpl:cumplimiento(delAnio), desde:todos.map(L => L.cuotas[0]?.fecha || L.creado).sort()[0],
       porCobrarInt:r2(pend.reduce((s, c) => s + c.interes, 0)),
-      capRiesgo:r2(pend.reduce((s, c) => s + c.capital, 0)),
+      capRiesgo:r2(pendTodo.reduce((s, c) => s + c.capital, 0)),
+      congelado:r2(cong.reduce((s, c) => s + c.capital + c.interes, 0)),
       proximas:pend.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)),
       ultimoPago:cs.filter(c => c.pagado && c.fechaPago).sort((a, b) => b.fechaPago.localeCompare(a.fechaPago))[0] || null,
       sem:semaforo(delAnio),
@@ -900,7 +905,7 @@ function cajasCliente(c, corto){
   const caja = (cls, l, v, sub) => `<div class="stat ${cls}"><div class="l">${l}</div><div class="v">${v}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
   const prox = sig ? caja(sig.fecha < t ? 'red' : 'violet', 'Próximo pago', fD(sig.fecha), `${money(totalHoy(sig))}${sig.fecha < t ? ` · ${daysBetween(sig.fecha, t)} días tarde` : sig.fecha === t ? ' · hoy' : ` · en ${daysBetween(t, sig.fecha)} días`}`)
     : caja('gray', 'Próximo pago', '—', 'sin cuotas pendientes');
-  const debe = caja(c.atrasado ? 'red' : c.debe ? 'amber' : 'gray', 'Debe ahora', money(c.debe), c.debe ? `${money(c.porCobrarInt)} de interés` : 'sin deuda');
+  const debe = caja(c.atrasado ? 'red' : c.debe ? 'amber' : 'gray', 'Debe ahora', money(c.debe), (c.debe ? `${money(c.porCobrarInt)} de interés` : 'sin deuda') + (c.congelado ? ` · ${money(c.congelado)} congelado` : ''));
   const gan = caja('green', 'Interés ganado' + sufAnio(), money(c.ganado), corto ? '' : 'ya cobrado');
   const prest = caja('blue', 'Prestado' + sufAnio(), money(c.prestado), corto ? '' : `en ${c.nPrestados} préstamo${c.nPrestados !== 1 ? 's' : ''}`);
   const rec = caja('green', 'Recaudado' + sufAnio(), money(c.cobrado), `${money(c.ganado)} de interés`);
@@ -912,7 +917,7 @@ function cajasCliente(c, corto){
   const punt = caja(nivel(c.cumpl).cls, 'Cumplimiento' + sufAnio(), c.cumpl === null ? '—' : `${nivel(c.cumpl).t} · ${c.cumpl}%`, resumenSem(c.sem));
   return `<div class="stats">${prox}${debe}${rec}${linea}${gan}${prest}${ult}${punt}</div>`;
 }
-function chipCliente(c){ return c.debe ? (c.atrasado ? '<span class="chip red">Atrasado</span>' : '<span class="chip blue">Debe</span>') : '<span class="chip green">Sin deuda</span>'; }
+function chipCliente(c){ return !c.debe && c.congelado ? '<span class="chip gray">Deuda congelada</span>' : c.debe ? (c.atrasado ? '<span class="chip red">Atrasado</span>' : '<span class="chip blue">Debe</span>') : '<span class="chip green">Sin deuda</span>'; }
 
 function vClientes(){
   if (clienteSel) return vCliente(clienteSel);
@@ -972,6 +977,7 @@ function vCliente(k){
       <div class="acts" style="margin-top:10px">
         ${pendientes(L).length ? `<button class="btn sm pri" onclick="dlgAbono('${L.id}')">Registrar abono</button>` : ''}
         <button class="btn sm" onclick="corregir('${L.id}')">Corregir</button>
+        ${pendientes(L).length ? `<button class="btn sm" onclick="congelar('${L.id}')">${L.congelado ? 'Descongelar' : 'Congelar deuda'}</button>` : ''}
         <button class="btn sm" onclick="abrirPrestamo('${L.id}')">Abrir en Préstamos</button>
         <button class="btn sm dan" onclick="eliminar('${L.id}')">Eliminar préstamo</button></div>
     </div>`;
@@ -1001,7 +1007,7 @@ function tablaHistorial(c){
     const estado = q.tipo === 'refi' ? `<span class="chip blue">Refinanciado · ${money(q.movido || 0)}</span>`
       : q.tipo === 'abono' ? `<span class="chip violet">Abono</span>`
       : q.pagado ? `<span class="chip green">Pagó ${fx(q.fechaPago)}</span> ${chipEstadoCumpl(q)}`
-      : q.fecha < t ? `<span class="chip red">Vencida</span> ${chipEstadoCumpl(q)}` : '<span class="chip gray">Pendiente</span>';
+      : L.congelado ? '<span class="chip gray">Congelado</span>' : q.fecha < t ? `<span class="chip red">Vencida</span> ${chipEstadoCumpl(q)}` : '<span class="chip gray">Pendiente</span>';
     html += `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t ? 'late' : ''}">
       <td>${fx(q.fecha)}</td><td>${textoEtq(L)}${L.modo === 'pct' ? ` <span class="hint">${num(L.valor)}%</span>` : ''}${etiquetaTipo(q)}</td>
       <td class="n">${q.tipo === 'refi' ? '—' : num(q.capital)}</td><td class="n">${q.tipo === 'refi' ? '—' : num(q.interes)}</td><td class="n"><b>${q.tipo === 'refi' ? '—' : num(tot)}</b></td>
@@ -1025,9 +1031,9 @@ function abrirPrestamo(lid){ const L = buscarL(lid); filtro = L.cliente; abierto
 let mesSel = hoy().slice(0,7), filtroMes = 'todos';
 function moverMes(k){ mesSel = addMonths(mesSel + '-01', k).slice(0,7); render(); }
 function filaMes(L, c){
-  const t = hoy(), st = c.tipo === 'refi' ? 'refi' : c.tipo === 'abono' ? 'abono' : c.pagado ? (c.tipo === 'interes' ? 'int' : 'ok') : c.fecha < t ? 'late' : 'pend';
+  const t = hoy(), st = c.tipo === 'refi' ? 'refi' : c.tipo === 'abono' ? 'abono' : !c.pagado && L.congelado ? 'cong' : c.pagado ? (c.tipo === 'interes' ? 'int' : 'ok') : c.fecha < t ? 'late' : 'pend';
   const chip = c.pagado && c.tipo !== 'abono' && estadoCumpl(c) && estadoCumpl(c).k !== 'ok' ? `<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span> ${chipEstadoCumpl(c)}` : {ok:`<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span>`, int:`<span class="chip amber">✓ Solo interés ${fD(c.fechaPago)}</span>`,
-    late:`<span class="chip red">Atrasado ${daysBetween(c.fecha, t)} d</span>`, pend:'<span class="chip gray">Pendiente</span>', refi:'<span class="chip blue">Refinanciado</span>', abono:`<span class="chip violet">Abono ${fD(c.fechaPago)}</span>`}[st];
+    late:`<span class="chip red">Atrasado ${daysBetween(c.fecha, t)} d</span>`, cong:'<span class="chip gray">Congelado</span>', pend:'<span class="chip gray">Pendiente</span>', refi:'<span class="chip blue">Refinanciado</span>', abono:`<span class="chip violet">Abono ${fD(c.fechaPago)}</span>`}[st];
   return `<div class="row mrow st-${st}">${avatar(L.cliente)}
     <div class="who"><b class="link" onclick="irCliente('${L.id}')">${esc(L.cliente)}</b>${L.modo === 'pct' ? ` <span class="hint">(${num(L.valor)}%)</span>` : ''}${chipEtq(L)} <span class="chip gray">${posicion(L, c)}</span>
       <div class="nota-l">${c.tipo === 'abono' ? `abono adelantado ${num(c.capital + c.interes)} (${num(c.capital)} cap + ${num(c.interes)} int)` : c.tipo === 'refi' ? `refinanciado: ${num(c.movido || 0)} pasó al nuevo préstamo` : `${c.tipo === 'interes' ? `solo interés ${num(c.interes)}` : c.fijo ? `monto fijo ${num(c.capital)}${c.interes ? ` - ${num(c.interes)}` : ''}` : `${num(c.capital)} - ${num(c.interes)}`} <span class="hint">(${fD(c.fecha)})</span> = <b>${num(c.capital + c.interes)}</b>`}</div>
@@ -1042,8 +1048,8 @@ function vMeses(){
   const porCobrar = m => r2(todas.filter(x => !x.c.pagado && mesKey(x.c.fecha) === m).reduce((s, x) => s + x.c.interes, 0));
   const del = todas.filter(x => mesKey(x.c.fecha) === mesSel).sort((a, b) => a.c.fecha.localeCompare(b.c.fecha) || a.L.cliente.localeCompare(b.L.cliente));
   const sum = (arr, f) => r2(arr.reduce((s, x) => s + f(x.c), 0)), tot = c => c.capital + c.interes;
-  const total = sum(del, tot), cobrado = sum(del.filter(x => x.c.pagado), tot), falta = r2(total - cobrado);
-  const pend = del.filter(x => !x.c.pagado), pag = del.filter(x => x.c.pagado);
+  const total = sum(del.filter(x => x.c.pagado || !x.L.congelado), tot), cobrado = sum(del.filter(x => x.c.pagado), tot), falta = r2(total - cobrado);
+  const pend = del.filter(x => !x.c.pagado && !x.L.congelado), pag = del.filter(x => x.c.pagado);
   const lista = filtroMes === 'pend' ? pend : filtroMes === 'pag' ? pag : del;
   const meses = Array.from({length:12}, (_, i) => addMonths(mesSel + '-01', i - 8).slice(0,7));
   const barras = meses.map(m => ({m, g:ganado(m), p:porCobrar(m)})), max = Math.max(1, ...barras.map(b => b.g + b.p));
@@ -1848,6 +1854,16 @@ function borrarCuota(lid, cid){
   L.cuotas = L.cuotas.filter(x => x !== c);
   L.eventos.push({f:hoy(), t:`Se borró una cuota de ${money(c.capital + c.interes)} (${fD(c.fecha)})`});
   save(); toast('Cuota borrada', snap);
+}
+/* Congelar: la deuda queda guardada (historial, riesgo) pero sale de Cobros, de los atrasados y de los totales del día,
+   y no suma mora. Se puede descongelar cuando se quiera. */
+function congelar(lid){
+  const L = buscarL(lid), snap = snapshot();
+  if (!L.congelado && !confirm(`¿Congelar la deuda de ${L.cliente} (${money(pendientes(L).reduce((s, c) => s + c.capital + c.interes, 0))})? Queda guardada, pero ya no aparece en Cobros ni suma mora.`)) return;
+  L.congelado = !L.congelado;
+  if (L.congelado) pendientes(L).forEach(c => c.moraExonerada = true);
+  L.eventos.push({f:hoy(), t:L.congelado ? 'Deuda congelada' : 'Deuda descongelada'});
+  save(); toast(L.congelado ? `${L.cliente}: deuda congelada` : `${L.cliente}: deuda activa otra vez`, snap);
 }
 function exonerar(lid, cid){
   const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), snap = snapshot();
