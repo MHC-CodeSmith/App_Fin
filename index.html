@@ -2093,7 +2093,7 @@ function dlgCuota(lid, cid){
       <option value="normal" ${tipo === 'normal' ? 'selected' : ''}>Normal (capital + interés)</option>
       <option value="fijo" ${tipo === 'fijo' ? 'selected' : ''}>Monto fijo (acuerdo, sin cálculo)</option>
       <option value="interes" ${tipo === 'interes' ? 'selected' : ''}>Solo interés</option></select></label>
-    <label>Prestado en esta cuota (S/)<input name="sd" type="number" min="0" step="any" value="${c.saldo ?? ''}" placeholder="${num(L.capital)} (el del préstamo)"><span class="hint" style="font-weight:400">Solo cambia esta fila. Vacío = el monto del préstamo.</span></label>
+    <label>Prestado (solo lo que se muestra en la columna Prestado)<input name="sd" type="number" min="0" step="any" value="${c.saldo ?? ''}" placeholder="${num(L.capital)} (el del préstamo)"><span class="hint" style="font-weight:400">Solo cambia esta fila. Vacío = el monto del préstamo.</span></label>
     <label>Fecha límite<input name="f" type="date" value="${c.fecha}"></label>
     <label><span id="lblCap">Capital de esta cuota</span><input name="c" type="number" step="any" value="${c.capital}"></label>
     <label>Interés acordado<input name="i" type="number" step="any" value="${intAcord(c)}"></label>
@@ -2105,7 +2105,7 @@ function dlgCuota(lid, cid){
       c.fecha = val(b,'f') || c.fecha; c.capital = +val(b,'c')||0; c.interes = r2((+val(b,'i')||0) + adic); if (adic) c.mora = adic; else delete c.mora; if (c.pagado) c.fechaPago = val(b,'fp') || c.fechaPago;
       c.tipo = t === 'interes' ? 'interes' : 'normal'; if (t === 'fijo') c.fijo = true; else delete c.fijo;
       L.cuotas.sort((a,b)=>a.fecha.localeCompare(b.fecha)); L.eventos.push({f:hoy(), t:'Se editó una cuota manualmente'}); save(); toast('Cuota actualizada', s); },
-    'Guardar', b => { b.querySelector('#lblCap').textContent = val(b,'t') === 'fijo' ? 'Monto fijo (S/)' : 'Capital de esta cuota'; });
+    'Guardar', b => { b.querySelector('#lblCap').textContent = val(b,'t') === 'fijo' ? 'Monto fijo que paga en esta cuota (S/)' : 'Capital de esta cuota'; });
 }
 
 /* ---------- Toast ---------- */
