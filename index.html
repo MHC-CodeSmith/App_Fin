@@ -979,7 +979,8 @@ function vCliente(k){
         <div class="hint">${money(L.capital)}${L.modo === 'pct' ? ` al ${num(L.valor)}%` : ''} · ${L.cuotas.length} cuota${L.cuotas.length > 1 ? 's' : ''}${fuera ? ` · ${fuera} fuera de ${anioFoco}` : ''}</div></div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="chip ${e.cls}">${e.t}</span>${chipCumpl(cumplimiento(L.cuotas))}</div></div>
       <div class="formula">${esc(L.formula).replace(/\n/g,'<br>')}</div>
-      ${L.nota ? `<div class="hint">Nota: ${esc(L.nota)}</div>` : ''}
+      ${tablaPrestamo(L)}
+      ${L.nota ? `<div class="hint" style="margin-top:8px">Nota: ${esc(L.nota)}</div>` : ''}
       <div class="acts" style="margin-top:10px">
         ${pendientes(L).length ? `<button class="btn sm pri" onclick="dlgAbono('${L.id}')">Registrar abono</button>` : ''}
         <button class="btn sm" onclick="corregir('${L.id}')">Corregir</button>
@@ -997,6 +998,29 @@ function recomendacion(c){
   return `<div class="riesgo ${n.cls === 'green' ? 'ok' : 'warn'}" style="margin-top:12px"><b>¿Volver a prestar?</b> ${frase}
     ${col > 0 ? ` Puedes prestarle hasta <b>${money(col)}</b> sin arriesgar tu capital.` : c.capRiesgo ? ` Aún debe ${money(c.capRiesgo)} de capital; todavía no está cubierto por lo ganado.` : ''}</div>`;
 }
+function estadoFila(L, q, fx){
+  const t = hoy();
+  return q.tipo === 'refi' ? `<span class="chip blue">Refinanciado · ${money(q.movido || 0)}</span>`
+    : q.tipo === 'abono' ? `<span class="chip violet">Abono</span>`
+    : q.pagado ? `<span class="chip green">Pagó ${fx(q.fechaPago)}</span> ${chipEstadoCumpl(q)}`
+    : L.congelado ? '<span class="chip gray">Congelado</span>' : q.fecha < t ? `<span class="chip red">Vencida</span> ${chipEstadoCumpl(q)}` : '<span class="chip gray">Pendiente</span>';
+}
+/* Cuotas de un préstamo con columnas nombradas y totales, para corroborar la cuenta. */
+function tablaPrestamo(L){
+  const t = hoy(), fx = fechaFmt(L.cuotas), sum = {cap:0, int:0, pag:0, pend:0};
+  const filas = L.cuotas.map((q, i) => {
+    const tot = r2(q.capital + q.interes), refi = q.tipo === 'refi';
+    if (!refi){ sum.cap += q.capital; sum.int += q.interes; if (q.pagado) sum.pag += tot; else sum.pend += tot; }
+    return `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t && !L.congelado ? 'late' : ''}">
+      <td>${i + 1}${etiquetaTipo(q)}</td><td>${fx(q.fecha)}</td>
+      <td class="n">${refi ? '—' : num(q.capital)}</td><td class="n">${refi ? '—' : num(q.interes)}</td><td class="n"><b>${refi ? '—' : num(tot)}</b></td>
+      <td>${estadoFila(L, q, fx)}</td></tr>`;
+  }).join('');
+  return `<div class="tblwrap" style="margin-top:8px"><table class="hist"><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th><th>Estado</th></tr></thead>
+    <tbody>${filas}</tbody>
+    <tfoot><tr><td colspan="2"><b>Total</b></td><td class="n"><b>${num(r2(sum.cap))}</b></td><td class="n"><b>${num(r2(sum.int))}</b></td><td class="n"><b>${num(r2(sum.cap + sum.int))}</b></td>
+      <td class="hint">Pagado <b>${money(sum.pag)}</b> · Pendiente <b>${money(sum.pend)}</b></td></tr></tfoot></table></div>`;
+}
 /* Todas las cuotas del cliente en filas, por mes (fecha límite), con totales para poder sacar la cuenta a mano. */
 function tablaHistorial(c){
   const t = hoy(), filas = [];
@@ -1010,10 +1034,7 @@ function tablaHistorial(c){
     const m = q.fecha.slice(0,7), tot = r2(q.capital + q.interes);
     if (m !== mes){ mes = m; html += `<tr class="mes-row"><td colspan="8">${nombreMes(m)}</td></tr>`; }
     if (q.tipo !== 'refi'){ sum.cap += q.capital; sum.int += q.interes; if (q.pagado) sum.pag += tot; else sum.pend += tot; }
-    const estado = q.tipo === 'refi' ? `<span class="chip blue">Refinanciado · ${money(q.movido || 0)}</span>`
-      : q.tipo === 'abono' ? `<span class="chip violet">Abono</span>`
-      : q.pagado ? `<span class="chip green">Pagó ${fx(q.fechaPago)}</span> ${chipEstadoCumpl(q)}`
-      : L.congelado ? '<span class="chip gray">Congelado</span>' : q.fecha < t ? `<span class="chip red">Vencida</span> ${chipEstadoCumpl(q)}` : '<span class="chip gray">Pendiente</span>';
+    const estado = estadoFila(L, q, fx);
     html += `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t ? 'late' : ''}">
       <td>${fx(q.fecha)}</td><td>${textoEtq(L)}${L.modo === 'pct' ? ` <span class="hint">${num(L.valor)}%</span>` : ''}${etiquetaTipo(q)}</td>
       <td class="n">${q.tipo === 'refi' ? '—' : num(q.capital)}</td><td class="n">${q.tipo === 'refi' ? '—' : num(q.interes)}</td><td class="n"><b>${q.tipo === 'refi' ? '—' : num(tot)}</b></td>
