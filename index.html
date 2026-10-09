@@ -154,6 +154,7 @@ table.edit input[type=date]{width:140px}
 :root[data-theme="dark"] .av{background:hsl(var(--h) 30% 24%);color:hsl(var(--h) 65% 82%)}
 .list .row > .av{align-self:flex-start;margin-top:2px}
 .link{cursor:pointer}
+td .link[title]{text-decoration:underline dotted;text-underline-offset:3px}
 .link:hover{text-decoration:underline}
 .clientes{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px}
 .cli{padding:14px;cursor:pointer;min-width:0;transition:border-color .15s,transform .15s}
@@ -1116,7 +1117,7 @@ function tablaPrestamo(L){
       <td class="n">${refi ? '—' : num(q.capital)}</td><td class="n">${refi ? '—' : num(intAcord(q))}</td><td class="n">${refi || !intAdic(q) ? '—' : num(intAdic(q))}</td><td class="n"><b>${refi ? '—' : num(tot)}</b></td>
       <td>${celdaPago(q, fx)}</td><td>${estadoFila(L, q)}</td><td style="text-align:right">${btnObs(L, q)}</td></tr>`;
   }).join('');
-  return `<div class="tblwrap" style="margin-top:8px"><table class="hist"><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Capital</th><th class="n" title="El interés pactado del préstamo">Interés acordado</th><th class="n" title="Lo que se cobró de más por demora (mora)">Interés adicional</th><th class="n">Total</th><th>Pagó el</th><th>Estado</th><th></th></tr></thead>
+  return `<div class="tblwrap" style="margin-top:8px"><table class="hist"><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Capital</th><th class="n" title="El interés pactado del préstamo">Interés acordado</th><th class="n" title="Interés + : lo que se cobró de más por demora (mora)">Interés +</th><th class="n">Total</th><th>Pagó el</th><th>Estado</th><th></th></tr></thead>
     <tbody>${filas}</tbody>
     <tfoot><tr><td colspan="2"><b>Total</b></td><td class="n"><b>${num(r2(sum.cap))}</b></td><td class="n"><b>${num(r2(sum.int))}</b></td><td class="n"><b>${num(r2(sum.adic))}</b></td><td class="n"><b>${num(r2(sum.cap + sum.int + sum.adic))}</b></td>
       <td colspan="3" class="hint">Pagado <b>${money(sum.pag)}</b> · Pendiente <b>${money(sum.pend)}</b></td></tr></tfoot></table></div>`;
@@ -1144,7 +1145,7 @@ function tablaHistorial(c){
       <td style="white-space:nowrap;text-align:right">${btnObs(L, q)} ${q.tipo === 'refi' ? '' : q.tipo === 'abono' ? `<button class="btn sm" onclick="anularAbono('${L.id}','${q.id}')">Anular</button>`
         : `${!q.pagado ? `<button class="btn sm pri" onclick="pagar('${L.id}','${q.id}')">Pagó</button> ` : ''}<button class="btn sm" onclick="dlgCuota('${L.id}','${q.id}')" title="Editar">✎</button> <button class="btn sm dan" onclick="borrarCuota('${L.id}','${q.id}')" title="Borrar">✕</button>`}</td></tr>`;
   }
-  return `<div class="card"><div class="tblwrap"><table class="hist"><thead><tr><th>Fecha límite</th><th>Préstamo</th><th class="n" title="Monto total del préstamo">Prestado</th><th class="n">Capital</th><th class="n" title="El interés pactado del préstamo">Interés acordado</th><th class="n" title="Lo que se cobró de más por demora (mora)">Interés adicional</th><th class="n">Total</th><th>Pagó el</th><th>Estado</th><th title="Día en que se prestó">Pedido el</th><th></th></tr></thead>
+  return `<div class="card"><div class="tblwrap"><table class="hist"><thead><tr><th>Fecha límite</th><th>Préstamo</th><th class="n" title="Monto total del préstamo">Prestado</th><th class="n">Capital</th><th class="n" title="El interés pactado del préstamo">Interés acordado</th><th class="n" title="Interés + : lo que se cobró de más por demora (mora)">Interés +</th><th class="n">Total</th><th>Pagó el</th><th>Estado</th><th title="Día en que se prestó">Pedido el</th><th></th></tr></thead>
     <tbody>${html}</tbody>
     <tfoot><tr><td colspan="3"><b>Total ${anioFoco === 'todos' ? '' : anioFoco}</b></td><td class="n"><b>${num(r2(sum.cap))}</b></td><td class="n"><b>${num(r2(sum.int))}</b></td><td class="n"><b>${num(r2(sum.adic))}</b></td><td class="n"><b>${num(r2(sum.cap + sum.int + sum.adic))}</b></td>
       <td colspan="4" class="hint">Pagado <b>${money(sum.pag)}</b> · Pendiente <b>${money(sum.pend)}</b></td></tr></tfoot></table></div></div>`;
@@ -2082,17 +2083,19 @@ function dlgCuota(lid, cid){
       <option value="normal" ${tipo === 'normal' ? 'selected' : ''}>Normal (capital + interés)</option>
       <option value="fijo" ${tipo === 'fijo' ? 'selected' : ''}>Monto fijo (acuerdo, sin cálculo)</option>
       <option value="interes" ${tipo === 'interes' ? 'selected' : ''}>Solo interés</option></select></label>
+    <label>Monto prestado (todo el préstamo)<input name="mp" type="number" min="0" step="any" value="${L.capital}"></label>
     <label>Fecha límite<input name="f" type="date" value="${c.fecha}"></label>
-    <label><span id="lblCap">Capital</span><input name="c" type="number" step="any" value="${c.capital}"></label>
+    <label><span id="lblCap">Capital de esta cuota</span><input name="c" type="number" step="any" value="${c.capital}"></label>
     <label>Interés acordado<input name="i" type="number" step="any" value="${intAcord(c)}"></label>
-    <label>Interés adicional (mora / demora)<input name="ia" type="number" step="any" min="0" value="${intAdic(c) || ''}" placeholder="0"></label>
+    <label>Interés + (mora / demora)<input name="ia" type="number" step="any" min="0" value="${intAdic(c) || ''}" placeholder="0"></label>
     ${c.pagado ? `<label>Fecha en que pagó<input name="fp" type="date" value="${c.fechaPago || c.fecha}"></label>` : ''}</div>`,
     b => { const s = snapshot(), t = val(b,'t');
-      const adic = Math.max(0, +val(b,'ia')||0);
+      const adic = Math.max(0, +val(b,'ia')||0), mp = +val(b,'mp');
+      if (mp >= 0 && mp !== L.capital){ L.eventos.push({f:hoy(), t:`Monto prestado ${money(L.capital)} → ${money(mp)}`}); L.capital = mp; }
       c.fecha = val(b,'f') || c.fecha; c.capital = +val(b,'c')||0; c.interes = r2((+val(b,'i')||0) + adic); if (adic) c.mora = adic; else delete c.mora; if (c.pagado) c.fechaPago = val(b,'fp') || c.fechaPago;
       c.tipo = t === 'interes' ? 'interes' : 'normal'; if (t === 'fijo') c.fijo = true; else delete c.fijo;
       L.cuotas.sort((a,b)=>a.fecha.localeCompare(b.fecha)); L.eventos.push({f:hoy(), t:'Se editó una cuota manualmente'}); save(); toast('Cuota actualizada', s); },
-    'Guardar', b => { b.querySelector('#lblCap').textContent = val(b,'t') === 'fijo' ? 'Monto fijo (S/)' : 'Capital'; });
+    'Guardar', b => { b.querySelector('#lblCap').textContent = val(b,'t') === 'fijo' ? 'Monto fijo (S/)' : 'Capital de esta cuota'; });
 }
 
 /* ---------- Toast ---------- */
