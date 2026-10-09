@@ -488,7 +488,7 @@ function bannerRespaldo(){
   else if (persist && !nubeActiva() && (!u || daysBetween(u, hoy()) > 7)) h += `<div class="banner">${u ? 'Tu último respaldo fue hace '+daysBetween(u,hoy())+' días.' : 'Aún no tienes un respaldo.'} Los datos viven solo en este navegador. <button class="btn sm" onclick="exportarJSON()">Descargar respaldo</button></div>`;
   if (S.drive?.auto && GOOGLE_CLIENT_ID && !Drive.listo()) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">Google Drive está desconectado; tus cambios no se están copiando. <button class="btn sm" onclick="sincronizarDrive(true)">Conectar y guardar</button></div>`;
   if (localStorage.getItem(KEY_NUBE) && nube.sinSesion) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">Tu sesión de la nube se cerró; los cambios no se están sincronizando. <button class="btn sm" onclick="entrarNube()">Entrar con Google</button></div>`;
-  if (S.ejemplo) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">Estos préstamos son de ejemplo, para que veas cómo funciona. Cuando quieras, empieza vacío o restaura tu respaldo. <button class="btn sm" onclick="S={prestamos:[],ultimoRespaldo:S.ultimoRespaldo,ejemplo:false};save()">Empezar vacío</button> <button class="btn sm" onclick="document.getElementById('fileIn').click()">Restaurar respaldo</button></div>`;
+  if (S.ejemplo) h += `<div class="banner" style="background:var(--blue-soft);color:var(--blue)">Estos préstamos son de ejemplo, para que veas cómo funciona. Cuando quieras, empieza vacío o restaura tu respaldo. <button class="btn sm" onclick="S={prestamos:[],ultimoRespaldo:S.ultimoRespaldo,ejemplo:false};save()">Empezar vacío</button> <button class="btn sm" onclick="elegirArchivo('restaurar')">Restaurar respaldo</button></div>`;
   return h;
 }
 
@@ -1099,7 +1099,8 @@ function vRespaldo(){
     <p class="hint">Último respaldo: ${S.ultimoRespaldo ? fD(S.ultimoRespaldo) : 'nunca'}</p>
     <div class="acts">
       <button class="btn pri" onclick="exportarJSON()">⬇ Descargar respaldo</button>
-      <button class="btn" onclick="document.getElementById('fileIn').click()">⬆ Restaurar respaldo</button>
+      <button class="btn" onclick="elegirArchivo('restaurar')">⬆ Restaurar respaldo</button>
+      <button class="btn" onclick="elegirArchivo('agregar')">＋ Agregar desde archivo</button>
       <button class="btn" onclick="exportarExcel()">⬇ Descargar Excel (.xlsx)</button>
       <button class="btn dan" onclick="borrarTodo()">Borrar todo</button>
     </div>
@@ -1361,6 +1362,9 @@ document.getElementById('fileIn').onchange = async e => {
     if (u8[0] === 0x50 && u8[1] === 0x4b){ archivos = await unzip(buf); d = JSON.parse(new TextDecoder().decode(archivos['respaldo.json'])); }
     else d = JSON.parse(new TextDecoder().decode(u8));
     if (!Array.isArray(d.prestamos)) throw new Error('formato');
+    normalizarTextos(d);
+    // Archivo "para agregar" (o botón Agregar): suma préstamos sin borrar lo que ya hay.
+    if (d.tipo === 'agregar' || modoArchivo === 'agregar') return fusionarRespaldo(d);
     if (!confirm(`¿Reemplazar los datos actuales con el respaldo (${d.prestamos.length} préstamos)?`)) return;
     for (const L of d.prestamos) for (const m of L.adjuntos || []){
       const datos = archivos['adjuntos/' + m.id];
@@ -1369,6 +1373,21 @@ document.getElementById('fileIn').onchange = async e => {
     S = d; S.ejemplo = false; save(); toast('Respaldo restaurado');
   } catch(err){ console.error(err); toast('Ese archivo no es un respaldo válido'); }
 };
+let modoArchivo = 'restaurar';
+function elegirArchivo(modo){ modoArchivo = modo; document.getElementById('fileIn').click(); }
+/* Agrega los préstamos del archivo que todavía no están (por id). Los marcados "_actualizar" reemplazan al mismo préstamo. */
+function fusionarRespaldo(d){
+  const existe = id => S.prestamos.some(x => x.id === id);
+  const nuevos = d.prestamos.filter(L => !existe(L.id)), corregir = d.prestamos.filter(L => L._actualizar && existe(L.id));
+  if (!nuevos.length && !corregir.length){ toast('Ese archivo no trae préstamos nuevos: ya estaban todos.'); return; }
+  if (!confirm(`Se agregarán ${nuevos.length} préstamo(s)${corregir.length ? ` y se corregirán ${corregir.length}` : ''}. Lo que ya tienes no se borra. ¿Continuar?`)) return;
+  const snap = snapshot(), limpio = ({_actualizar, ...L}) => L;
+  if (S.ejemplo){ S.prestamos = []; S.ejemplo = false; }
+  for (const L of corregir) S.prestamos[S.prestamos.findIndex(x => x.id === L.id)] = limpio(L);
+  for (const L of nuevos) S.prestamos.push(limpio(L));
+  S.prestamos.sort(porCreacion); save();
+  toast(`${nuevos.length} préstamo(s) agregados${corregir.length ? `, ${corregir.length} corregido(s)` : ''}`, snap);
+}
 function borrarTodo(){ if (confirm('¿Borrar todos los préstamos? (Descarga un respaldo antes si quieres conservarlos)')) { S = {prestamos:[], ultimoRespaldo:S.ultimoRespaldo, ejemplo:false}; save(); } }
 
 /* ================= Archivos adjuntos ================= */

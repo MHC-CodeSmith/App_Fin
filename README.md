@@ -44,6 +44,7 @@ En iPhone: Safari → botón Compartir → **Agregar a inicio**.
 Los datos viven solo en ese celular. Si se borran los datos de Chrome o se cambia de celular, se pierden.
 Descarga un respaldo cada semana (**Respaldo → Descargar respaldo**; si hay adjuntos sale como `.zip` con todo) o actívalo en Google Drive.
 Para pasar los datos a otro equipo: descarga el respaldo en uno y usa **Restaurar respaldo** en el otro.
+**Agregar desde archivo** suma los préstamos de un archivo sin borrar los que ya están (los que ya existen no se duplican). Los archivos marcados `"tipo": "agregar"` se agregan así aunque se abran con *Restaurar*.
 Cada equipo guarda su propia copia; no se sincronizan solos.
 
 ## Excel
