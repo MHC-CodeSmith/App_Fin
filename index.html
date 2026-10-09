@@ -999,6 +999,13 @@ function recomendacion(c){
   return `<div class="riesgo ${n.cls === 'green' ? 'ok' : 'warn'}" style="margin-top:12px"><b>¿Volver a prestar?</b> ${frase}
     ${col > 0 ? ` Puedes prestarle hasta <b>${money(col)}</b> sin arriesgar tu capital.` : c.capRiesgo ? ` Aún debe ${money(c.capRiesgo)} de capital; todavía no está cubierto por lo ganado.` : ''}</div>`;
 }
+/* Observación de una cuota: solo se ve al tocar "Obs" (el botón se resalta si tiene algo escrito). */
+const btnObs = (L, q) => `<button class="btn sm ${q.obs ? 'pri' : ''}" onclick="dlgObs('${L.id}','${q.id}')" title="${q.obs ? 'Ver observación' : 'Agregar observación'}">Obs${q.obs ? ' •' : ''}</button>`;
+function dlgObs(lid, cid){
+  const L = buscarL(lid), q = L.cuotas.find(x => x.id === cid);
+  dialogo(`Observación · ${L.cliente} · ${fDa(q.fecha)}`, `<div class="form"><label class="full">Observación<textarea name="o" rows="5" placeholder="Escribe aquí lo que quieras recordar de esta cuota">${esc(q.obs || '')}</textarea></label></div>`,
+    b => { const s = snapshot(), o = val(b, 'o').trim(); if (o) q.obs = o; else delete q.obs; save(); toast(o ? 'Observación guardada' : 'Observación borrada', s); });
+}
 function estadoFila(L, q, fx){
   const t = hoy();
   return q.tipo === 'refi' ? `<span class="chip blue">Refinanciado · ${money(q.movido || 0)}</span>`
@@ -1015,12 +1022,12 @@ function tablaPrestamo(L){
     return `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t && !L.congelado ? 'late' : ''}">
       <td>${i + 1}${etiquetaTipo(q)}</td><td>${fx(q.fecha)}</td>
       <td class="n">${refi ? '—' : num(q.capital)}</td><td class="n">${refi ? '—' : num(q.interes)}</td><td class="n"><b>${refi ? '—' : num(tot)}</b></td>
-      <td>${estadoFila(L, q, fx)}</td></tr>`;
+      <td>${estadoFila(L, q, fx)}</td><td style="text-align:right">${btnObs(L, q)}</td></tr>`;
   }).join('');
-  return `<div class="tblwrap" style="margin-top:8px"><table class="hist"><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th><th>Estado</th></tr></thead>
+  return `<div class="tblwrap" style="margin-top:8px"><table class="hist"><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th><th>Estado</th><th></th></tr></thead>
     <tbody>${filas}</tbody>
     <tfoot><tr><td colspan="2"><b>Total</b></td><td class="n"><b>${num(r2(sum.cap))}</b></td><td class="n"><b>${num(r2(sum.int))}</b></td><td class="n"><b>${num(r2(sum.cap + sum.int))}</b></td>
-      <td class="hint">Pagado <b>${money(sum.pag)}</b> · Pendiente <b>${money(sum.pend)}</b></td></tr></tfoot></table></div>`;
+      <td colspan="2" class="hint">Pagado <b>${money(sum.pag)}</b> · Pendiente <b>${money(sum.pend)}</b></td></tr></tfoot></table></div>`;
 }
 /* Todas las cuotas del cliente en filas, por mes (fecha límite), con totales para poder sacar la cuenta a mano. */
 function tablaHistorial(c){
@@ -1042,7 +1049,7 @@ function tablaHistorial(c){
       <td class="n">${q.tipo === 'refi' ? '—' : num(q.capital)}</td><td class="n">${q.tipo === 'refi' ? '—' : num(q.interes)}</td><td class="n"><b>${q.tipo === 'refi' ? '—' : num(tot)}</b></td>
       <td>${estado}</td>
       <td>${L.fechaPrestamo ? fDa(L.fechaPrestamo) : '<span class="hint">—</span>'}</td>
-      <td style="white-space:nowrap;text-align:right">${q.tipo === 'refi' ? '' : q.tipo === 'abono' ? `<button class="btn sm" onclick="anularAbono('${L.id}','${q.id}')">Anular</button>`
+      <td style="white-space:nowrap;text-align:right">${btnObs(L, q)} ${q.tipo === 'refi' ? '' : q.tipo === 'abono' ? `<button class="btn sm" onclick="anularAbono('${L.id}','${q.id}')">Anular</button>`
         : `${!q.pagado ? `<button class="btn sm pri" onclick="pagar('${L.id}','${q.id}')">Pagó</button> ` : ''}<button class="btn sm" onclick="dlgCuota('${L.id}','${q.id}')" title="Editar">✎</button> <button class="btn sm dan" onclick="borrarCuota('${L.id}','${q.id}')" title="Borrar">✕</button>`}</td></tr>`;
   }
   return `<div class="card"><div class="tblwrap"><table class="hist"><thead><tr><th>Fecha límite</th><th>Préstamo</th><th class="n" title="Monto total del préstamo">Prestado</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th><th>Estado</th><th title="Día en que se prestó">Pedido el</th><th></th></tr></thead>
