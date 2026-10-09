@@ -978,7 +978,7 @@ function cajasCliente(c, corto){
     `Todo el dinero que ${quien} ya te devolvió ${anio}: capital + interés. De eso, ${money(c.ganado)} es tu ganancia (interés) y ${money(r2(c.cobrado - c.ganado))} es tu capital que regresó.`);
   const col = colchon(c);
   const linea = caja(col > 0 ? 'blue' : 'gray', 'Sin riesgo hasta', col > 0 ? money(col) : 'S/ 0',
-    col > 0 ? `ganado ${money(c.ganadoTotal)} − debe ${money(c.capRiesgo)}` : c.capRiesgo ? `faltan ${money(-col)} por recuperar` : 'aún no hay ganancia',
+    col > 0 ? `interés de todos los años ${money(c.ganadoTotal)} − debe ${money(c.capRiesgo)}` : c.capRiesgo ? `faltan ${money(-col)} por recuperar` : 'aún no hay ganancia',
     `Hasta cuánto le puedes prestar sin arriesgar tu propio dinero. Es lo que ya ganaste de interés con ${quien} desde el inicio (${money(c.ganadoTotal)}) menos el capital que todavía te debe (${money(c.capRiesgo)}): ${money(c.ganadoTotal)} − ${money(c.capRiesgo)} = ${money(col)}. `
     + (col > 0 ? `Si le prestas hasta ${money(col)} y no te devolviera nada, no perderías tu capital: solo dejarías de ganar parte de lo que ya ganaste con ${quien}.` : `Hoy está en 0: todavía no ganaste lo suficiente con ${quien} para cubrir lo que te debe, así que cualquier préstamo nuevo arriesga tu capital.`));
   if (corto) return `<div class="stats">${prox}${debe}${gan}${rec}${linea}${prest}</div>`;
