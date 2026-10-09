@@ -1,11 +1,12 @@
-# Belu Bank
+# BeluBank
 
 App web para controlar préstamos y cobros. Moneda: soles (S/).
 
 - Cuotas con capital e interés (automáticas o con fecha y monto elegidos a mano para cada mes).
 - Ficha del cliente: apodo, teléfono, cuánto gana al mes (y qué % de su ingreso es la cuota), nota y archivos adjuntos (contratos, fotos, videos).
 - Atrasos, pagos de "solo interés", refinanciamientos y **Corregir** para arreglar errores.
-- **% cumplido** de cada cliente: cuotas pagadas completas y a tiempo sobre las que ya vencieron.
+- **Semáforo de cumplimiento** de cada cliente (Cumple / Regular / Riesgoso) con tolerancia de 3 días; pagar solo el interés a tiempo no cuenta como incumplir.
+- **Monto fijo**: una cuota puede ser un monto acordado sin cálculo (por ejemplo, en un refinanciamiento).
 - **Meses**: cada mes como en la nota (cliente, %, capital − interés, fecha y si pagó), con lo cobrado, lo que falta, la ganancia del mes y un gráfico para saltar entre meses.
 - **Clientes**: buscador con lo recaudado de cada cliente (capital + interés), lo que debe, su % cumplido y hasta cuánto se le puede prestar sin riesgo; al tocar uno se ve todo su historial.
 - **Año en foco**: arriba se elige el año (al abrir la app siempre es el año actual). La pantalla principal muestra el resumen del año y Clientes, Préstamos y Meses muestran lo de ese año.
@@ -33,7 +34,7 @@ No hagas commit de los archivos de respaldo (`belu-bank-respaldo-*.json` / `.zip
 
 1. Abre el enlace de arriba en **Chrome**.
 2. Menú **⋮ → Agregar a pantalla principal** (o **Instalar app**).
-3. Aparece el ícono **Belu Bank**; ábrela desde ahí.
+3. Aparece el ícono **BeluBank**; ábrela desde ahí.
 4. Pestaña **Respaldo → Empezar vacío**, o **Restaurar respaldo** para cargar un `.json` traído de otro equipo.
 
 En iPhone: Safari → botón Compartir → **Agregar a inicio**.
@@ -86,7 +87,7 @@ El cliente ve **solo lo que debe hoy**: el total, cuánto es capital, interés y
 
 ## Google Drive
 
-La pestaña **Respaldo → Google Drive** guarda en la carpeta *Belu Bank* del Drive el respaldo (`belu-bank-respaldo.json`), el Excel (`Belu Bank.xlsx`) y los adjuntos (carpeta *Adjuntos*), manualmente o automáticamente después de cada cambio.
+La pestaña **Respaldo → Google Drive** guarda en la carpeta *BeluBank* del Drive el respaldo (`belu-bank-respaldo.json`), el Excel (`BeluBank.xlsx`) y los adjuntos (carpeta *Adjuntos*), manualmente o automáticamente después de cada cambio.
 
 Configuración (ya hecha en el proyecto `belu-bank`):
 
@@ -103,11 +104,15 @@ El ID de cliente no es secreto (Google lo diseña para ir en el código de la p�
 - **Interés en %**: sobre el capital total, repartido entre los meses. `1000*16%/2mes → 500cap+80int=580`.
 - **Redondeo**: el capital por cuota se redondea hacia arriba y el interés hacia abajo; la última cuota ajusta la diferencia (`2000*20%/3mes → 667+133=800`, última `666+134=800`).
 - **Solo interés**: el cliente paga solo el interés del mes; ese pago queda registrado y toda la deuda pendiente se corre un mes (`3/3 +1 → 4/4`).
-- **Refinanciar / juntar deudas** (en *Nuevo* o con el botón *Refinanciar* de un préstamo): se eligen una o varias deudas pendientes, de una o varias personas. Nuevo capital = capital pendiente de las elegidas + interés no pagado (por defecto, interés y mora de las cuotas ya vencidas) − abono. Las cuotas pendientes de las deudas viejas se cierran y quedan marcadas como *Renovado*, enlazadas al préstamo nuevo.
+- **Refinanciamiento / juntar deudas** (en *Nuevo* o con el botón *Refinanciar* de un préstamo): se eligen una o varias deudas pendientes, de una o varias personas. Nuevo capital = capital pendiente de las elegidas + interés no pagado (por defecto, interés y mora de las cuotas ya vencidas) − abono. Las cuotas pendientes de las deudas viejas se cierran y quedan marcadas como *Renovado*, enlazadas al préstamo nuevo.
 - **Mora**: `días de atraso × mora por día` (por defecto 5). Al registrar el pago se suma al interés de esa cuota y queda como ganancia. *Exonerar* la quita antes o después del pago.
 - **Sin riesgo hasta**: interés ya cobrado al cliente − capital que todavía debe. Un préstamo nuevo menor o igual a ese monto queda cubierto por lo ya ganado con esa persona (en *Nuevo* aparece el aviso).
 - **Abono**: si el cliente paga de más, el monto se descuenta de las próximas cuotas (primero capital, luego interés). Queda registrado como *abono* (cuenta como cobrado ese día) y las cuotas que llegan a 0 quedan *cubiertas*. Se puede anular.
-- **% cumplido**: de las cuotas ya vencidas (o pagadas), cuántas se pagaron completas en o antes de su fecha límite. Un mes de *solo interés* cuenta como no cumplido.
+- **Cumplimiento (semáforo)**, por cuota según su fecha límite y los días de tolerancia (3 por defecto, configurable en *Respaldo*):
+  - *A tiempo* (pagó completo hasta la fecha límite) y *Tolerancia* (pagó completo hasta 3 días después): cuentan 100 %.
+  - *Pagó interés* (solo el interés, dentro de la tolerancia): 75 %. Cumplió con lo importante.
+  - *Tarde* (pagó después de la tolerancia): 25 %. *No pagó* (venció hace más de 3 días sin pago): 0 %.
+  - Cliente: **Cumple** ≥ 85 %, **Regular** ≥ 60 %, **Riesgoso** < 60 %. Abonos, refinanciamientos y cuotas cubiertas no se evalúan.
 - **Mes y año de cada cuota**: siempre por su **fecha límite**, aunque el cliente pague antes (adelanto) o después. Ganancia del mes = interés de las cuotas pagadas que vencen ese mes; *por cobrar* = interés de las que vencen ese mes y aún no se pagan.
 
 ## Archivos
