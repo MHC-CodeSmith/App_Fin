@@ -509,6 +509,10 @@ function resumenAnio(){
     </div></div>`;
 }
 
+/* Atrasados: van al final de Cobros y se pueden ocultar (la preferencia se recuerda en el equipo). */
+const verAtrasados = () => { try { return localStorage.getItem('belubank.verAtrasados') !== '0'; } catch(e){ return true; } };
+function ocultarAtrasados(ver){ try { localStorage.setItem('belubank.verAtrasados', ver ? '1' : '0'); } catch(e){} render(); }
+
 function filaCobro(L, c){
   const t = hoy(), atras = c.fecha < t ? daysBetween(c.fecha, t) : 0;
   const ext = extrasInteres(L);
@@ -547,12 +551,14 @@ function vInicio(){
     <div class="kpi"><div class="l">Capital en la calle</div><div class="v">${money(calle)}</div><div class="s">${activos} préstamo${activos!==1?'s':''} activo${activos!==1?'s':''} · +${money(porInt)} de interés por cobrar</div></div>
     <div class="kpi"><div class="l">Por cobrar en ${nombreMes(mes)}</div><div class="v">${money(porCobrarMes)}</div><div class="s">incluye atrasados</div></div>
     <div class="kpi"><div class="l">Cobrado en ${nombreMes(mes)}</div><div class="v">${money(cobradoMes)}</div><div class="s">ganancia (interés): ${money(intMes)}</div></div>
-    <div class="kpi ${atras.length?'red':''}"><div class="l">Cuotas atrasadas</div><div class="v">${atras.length}</div><div class="s">${atras.length ? money(atras.reduce((s,x)=>s+x.c.capital+x.c.interes,0))+' vencido' : 'todo en orden'}</div></div>
+    <div class="kpi"><div class="l">Cuotas atrasadas</div><div class="v">${atras.length}</div><div class="s">${atras.length ? money(atras.reduce((s,x)=>s+x.c.capital+x.c.interes,0))+' vencido' : 'todo en orden'}</div></div>
   </div>
-  ${grupo('Atrasados', atras, 'red')}
   ${grupo('Este mes ('+nombreMes(mes)+')', esteMes)}
   ${grupo('Próximo mes ('+nombreMes(prox)+')', proxMes)}
-  ${!atras.length && !esteMes.length && !proxMes.length ? '<div class="card empty" style="margin-top:16px">No hay cobros pendientes para este mes ni el próximo. </div>' : ''}`;
+  ${!esteMes.length && !proxMes.length ? '<div class="card empty" style="margin-top:16px">No hay cobros pendientes para este mes ni el próximo.</div>' : ''}
+  ${atras.length ? `<div class="toolbar" style="margin-top:18px"><span class="grp" style="margin:0">Atrasados (${atras.length}) · ${money(atras.reduce((s,x)=>s+totalHoy(x.c),0))}</span>
+    <button class="btn sm" onclick="ocultarAtrasados(${!verAtrasados()})">${verAtrasados() ? 'Ocultar' : 'Mostrar'}</button></div>
+    ${verAtrasados() ? `<div class="card list">${atras.map(x=>filaCobro(x.L,x.c)).join('')}</div><p class="hint">Si una deuda ya no se va a cobrar por ahora, usa <b>Congelar</b> en el préstamo para que no aparezca aquí.</p>` : ''}` : ''}`;
 }
 
 function vPrestamos(){
