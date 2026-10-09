@@ -1051,7 +1051,8 @@ function vCliente(k){
       ${L.nota ? `<div class="hint" style="margin-top:8px">Nota: ${esc(L.nota)}</div>` : ''}
       <div class="acts" style="margin-top:10px">
         ${pendientes(L).length ? `<button class="btn sm pri" onclick="dlgAbono('${L.id}')">Registrar abono</button>` : ''}
-        <button class="btn sm" onclick="corregir('${L.id}')">Corregir</button>
+        <button class="btn sm" onclick="dlgPrestamo('${L.id}')">Editar préstamo</button>
+        <button class="btn sm" onclick="corregir('${L.id}')">Corregir cuotas</button>
         ${pendientes(L).length ? `<button class="btn sm" onclick="congelar('${L.id}')">${esCongelado(L) ? 'Descongelar' : 'Congelar deuda'}</button>` : ''}
         <button class="btn sm" onclick="abrirPrestamo('${L.id}')">Abrir en Préstamos</button>
         <button class="btn sm dan" onclick="eliminar('${L.id}')">Eliminar préstamo</button></div>
@@ -1136,7 +1137,7 @@ function tablaHistorial(c){
     const estado = estadoFila(L, q);
     html += `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t ? 'late' : ''}">
       <td>${fx(q.fecha)}</td><td>${textoEtq(L)}${L.modo === 'pct' ? ` <span class="hint">${num(L.valor)}%</span>` : ''}${etiquetaTipo(q)}</td>
-      <td class="n">${num(L.capital)}${L.cuotas.length > 1 ? `<div class="hint">cuota ${posicion(L, q)}</div>` : ''}</td>
+      <td class="n"><span class="link" title="Editar préstamo" onclick="dlgPrestamo('${L.id}')">${num(L.capital)}</span>${L.cuotas.length > 1 ? `<div class="hint">cuota ${posicion(L, q)}</div>` : ''}</td>
       <td class="n">${q.tipo === 'refi' ? '—' : num(q.capital)}</td><td class="n">${q.tipo === 'refi' ? '—' : num(intAcord(q))}</td><td class="n">${q.tipo === 'refi' || !intAdic(q) ? '—' : num(intAdic(q))}</td><td class="n"><b>${q.tipo === 'refi' ? '—' : num(tot)}</b></td>
       <td>${celdaPago(q, fx)}</td><td>${estado}</td>
       <td>${L.fechaPrestamo ? fDa(L.fechaPrestamo) : '<span class="hint">—</span>'}</td>
@@ -2052,6 +2053,28 @@ function dlgSoloInteres(lid, cid){
     });
 }
 
+/* Editar los datos del préstamo (monto prestado, tasa, fechas, cliente, nota) sin tocar las cuotas. */
+function dlgPrestamo(lid){
+  const L = buscarL(lid);
+  dialogo(`Editar préstamo de ${L.cliente}`, `<div class="form">
+    <label>Monto prestado (S/)<input name="cap" type="number" min="0" step="any" value="${L.capital}"></label>
+    <label>${L.modo === 'pct' ? 'Interés (%)' : L.modo === 'mes' ? 'Interés por mes (S/)' : 'Interés total (S/)'}<input name="val" type="number" min="0" step="any" value="${L.valor}"></label>
+    <label>Fecha en que se prestó<input name="fp" type="date" value="${L.fechaPrestamo || ''}"></label>
+    <label>Cliente<input name="cli" value="${esc(L.cliente)}"></label>
+    <label>Apodo<input name="apo" value="${esc(L.apodo || '')}"></label>
+    <label>Teléfono<input name="tel" value="${esc(L.tel || '')}"></label>
+    <label class="full">Fórmula (como en tu nota)<textarea name="fo" rows="2">${esc(L.formula || '')}</textarea></label>
+    <label class="full">Nota<textarea name="no" rows="3">${esc(L.nota || '')}</textarea></label>
+    <p class="full hint" style="margin:0">Esto cambia los datos del préstamo. Las cuotas (fechas y montos de cada mes) se cambian con <b>Corregir cuotas</b> o con ✎ en cada fila.</p></div>`,
+    b => {
+      const s = snapshot(), antes = L.capital;
+      L.capital = +val(b,'cap') || 0; L.valor = +val(b,'val') || 0; L.fechaPrestamo = val(b,'fp');
+      L.cliente = val(b,'cli').trim() || L.cliente; L.apodo = val(b,'apo').trim(); L.tel = val(b,'tel').trim();
+      L.formula = val(b,'fo').trim(); L.nota = val(b,'no').trim();
+      L.eventos.push({f:hoy(), t:antes !== L.capital ? `Se editó el préstamo (monto ${money(antes)} → ${money(L.capital)})` : 'Se editaron los datos del préstamo'});
+      save(); toast('Préstamo actualizado', s);
+    });
+}
 function dlgCuota(lid, cid){
   const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), tipo = c.fijo ? 'fijo' : c.tipo === 'interes' ? 'interes' : 'normal';
   dialogo(`Editar cuota ${posicion(L,c)} de ${L.cliente}`, `<div class="form">
