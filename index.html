@@ -64,6 +64,7 @@ h2 small{color:var(--muted);font-weight:500}
 .btn:hover{border-color:var(--brand)}
 .btn.pri{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
 .btn.warn{color:var(--amber)}
+.btn.info{color:var(--blue)}
 .btn.dan{color:var(--red)}
 .btn.wa{color:#1f9d55}
 .btn.sm{padding:4px 8px;font-size:12px}
@@ -376,17 +377,30 @@ const pendientes = L => L.cuotas.filter(c => !c.pagado);
 const normales = L => L.cuotas.filter(c => c.tipo === 'normal');
 function posicion(L, c){ return (L.cuotas.indexOf(c)+1) + '/' + L.cuotas.length; }
 function extrasInteres(L){ return L.cuotas.filter(c => c.tipo === 'interes').length; }
+/* Congelado automático: si la cuota pendiente más antigua venció hace más de N días (120 por defecto)
+   y en ese tiempo no hubo ningún pago. "Descongelar" lo vuelve a activar. */
+const diasCongelar = () => S.diasCongelar ?? 120;
+function congeladoAuto(L){
+  if (L.descongelado || !diasCongelar()) return false;
+  const p = pendientes(L), t = hoy(); if (!p.length || daysBetween(p[0].fecha, t) <= diasCongelar()) return false;
+  const ult = L.cuotas.filter(c => c.pagado && c.fechaPago).map(c => c.fechaPago).sort().at(-1);
+  return !ult || daysBetween(ult, t) > diasCongelar();
+}
+const esCongelado = L => !!L.congelado || congeladoAuto(L);
+// La mora no corre en préstamos congelados
+let mapaCuotas = new WeakMap();
+function prestamoDeCuota(c){ if (!mapaCuotas.has(c)){ mapaCuotas = new WeakMap(); S.prestamos.forEach(L => L.cuotas.forEach(q => mapaCuotas.set(q, L))); } return mapaCuotas.get(c); }
 function estadoPrestamo(L){
   const p = pendientes(L);
   if (!p.length) return L.refinanciadoEn ? {t:'Refinanciado', cls:'blue'} : {t:'Pagado', cls:'green'};
-  if (L.congelado) return {t:'Congelado', cls:'gray'};
+  if (esCongelado(L)) return {t:'Congelado', cls:'gray'};
   if (p[0].fecha < hoy()) return {t:'Atrasado', cls:'red'};
   return {t:'Al día', cls:'blue'};
 }
 function mesKey(s){ return s.slice(0,7); }
 // Cómo se lee una cuota: "300 cap + 129 int" o, si fue un acuerdo sin cálculo, "monto fijo 200".
 const descCuota = c => c.fijo ? `monto fijo ${num(c.capital)}${c.interes ? ` + ${num(c.interes)} int` : ''}` : `${num(c.capital)} cap + ${num(c.interes)} int`;
-const etiquetaTipo = c => c.fijo ? ' <span class="chip violet">monto fijo</span>' : c.tipo === 'interes' ? ' <span class="chip amber">solo int.</span>' : c.tipo === 'abono' ? ' <span class="chip violet">abono</span>'
+const etiquetaTipo = c => c.fijo ? ' <span class="chip violet">monto fijo</span>' : c.tipo === 'interes' ? ' <span class="chip blue">solo int.</span>' : c.tipo === 'abono' ? ' <span class="chip violet">abono</span>'
   : c.cubierta ? ' <span class="chip violet">cubierta con abono</span>' : '';
 
 /* Mora: S/ 5 (configurable) por cada día de atraso de una cuota. Se suma sola al registrar el pago
@@ -394,12 +408,13 @@ const etiquetaTipo = c => c.fijo ? ' <span class="chip violet">monto fijo</span>
 const moraDia = () => S.moraDia ?? 5;
 function moraDe(c, alDia = hoy()){
   if (c.pagado || c.moraExonerada || c.tipo !== 'normal') return 0;
+  const L = prestamoDeCuota(c); if (L && esCongelado(L)) return 0;
   const d = daysBetween(c.fecha, alDia);
   return d > 0 ? r2(d * moraDia()) : 0;
 }
 const totalHoy = c => r2(c.capital + c.interes + moraDe(c));
 function chipMora(L, c){
-  if (L.congelado && !c.pagado) return '';
+  if (esCongelado(L) && !c.pagado) return '';
   if (c.pagado) return c.mora ? `<span class="chip amber">incl. mora ${num(c.mora)}</span> <button class="btn sm" onclick="quitarMora('${L.id}','${c.id}')">Quitar mora</button>` : '';
   if (c.tipo !== 'normal' || c.fecha >= hoy() || !moraDia()) return '';
   if (c.moraExonerada) return `<span class="chip gray">Mora exonerada</span> <button class="btn sm" onclick="exonerar('${L.id}','${c.id}')">Cobrar mora</button>`;
@@ -535,6 +550,16 @@ function resumenAnio(){
 const verAtrasados = () => { try { return localStorage.getItem('belubank.verAtrasados') !== '0'; } catch(e){ return true; } };
 function ocultarAtrasados(ver){ try { localStorage.setItem('belubank.verAtrasados', ver ? '1' : '0'); } catch(e){} render(); }
 
+function filaCongelado(L){
+  const p = pendientes(L), debe = r2(p.reduce((s, c) => s + c.capital + c.interes, 0));
+  const ult = L.cuotas.filter(c => c.pagado && c.fechaPago).map(c => c.fechaPago).sort().at(-1);
+  return `<div class="row">${avatar(L.cliente)}
+    <div class="who"><b class="link" onclick="irCliente('${L.id}')">${esc(L.cliente)}</b>${chipEtq(L)} <span class="chip gray">${L.congelado ? 'Congelado' : 'Congelado automático'}</span>
+      <div class="meta">Debe desde ${fDa(p[0].fecha)} · ${ult ? `último pago ${fDa(ult)}` : 'nunca pagó'}</div></div>
+    <div class="amt"><b>${money(debe)}</b><div class="meta">${num(r2(p.reduce((s, c) => s + c.capital, 0)))} cap + ${num(r2(p.reduce((s, c) => s + c.interes, 0)))} int</div></div>
+    <div class="acts"><button class="btn" onclick="congelar('${L.id}')">Descongelar</button></div></div>`;
+}
+
 function filaCobro(L, c){
   const t = hoy(), atras = c.fecha < t ? daysBetween(c.fecha, t) : 0;
   const ext = extrasInteres(L);
@@ -545,7 +570,7 @@ function filaCobro(L, c){
     ${chipMora(L, c) ? `<div class="acts" style="flex-basis:100%;align-items:center">${chipMora(L, c)}</div>` : ''}
     <div class="acts">
       <button class="btn pri" onclick="pagar('${L.id}','${c.id}')">✓ Pagó</button>
-      <button class="btn warn" onclick="dlgSoloInteres('${L.id}','${c.id}')">Solo interés</button>
+      <button class="btn info" onclick="dlgSoloInteres('${L.id}','${c.id}')">Solo interés</button>
       <button class="btn" onclick="dlgAbono('${L.id}')">Abono</button>
       <button class="btn wa" onclick="whatsapp('${L.id}','${c.id}')">WhatsApp</button>
     </div></div>`;
@@ -554,7 +579,8 @@ function filaCobro(L, c){
 function vInicio(){
   const t = hoy(), mes = t.slice(0,7), prox = addMonths(t,1).slice(0,7);
   const items = [];
-  S.prestamos.filter(L => !L.congelado).forEach(L => pendientes(L).forEach(c => items.push({L,c})));
+  S.prestamos.filter(L => !esCongelado(L)).forEach(L => pendientes(L).forEach(c => items.push({L,c})));
+  const congs = S.prestamos.filter(L => esCongelado(L) && pendientes(L).length).sort((a, b) => pendientes(a)[0].fecha.localeCompare(pendientes(b)[0].fecha));
   items.sort((a,b) => a.c.fecha.localeCompare(b.c.fecha));
   const atras = items.filter(x => x.c.fecha < t);
   const esteMes = items.filter(x => x.c.fecha >= t && mesKey(x.c.fecha) === mes);
@@ -564,7 +590,7 @@ function vInicio(){
   const porCobrarMes = [...atras, ...esteMes].reduce((s,x) => s + x.c.capital + x.c.interes, 0);
   let cobradoMes = 0, intMes = 0;
   S.prestamos.forEach(L => L.cuotas.forEach(c => { if (c.pagado && mesKey(c.fecha) === mes){ cobradoMes += c.capital+c.interes; intMes += c.interes; }}));
-  const activos = S.prestamos.filter(L => !L.congelado && pendientes(L).length).length;
+  const activos = S.prestamos.filter(L => !esCongelado(L) && pendientes(L).length).length;
   const nombreMes = m => { const p = P(m+'-01'); return MESES[p.m-1]; };
 
   const grupo = (titulo, arr, cls) => arr.length ? `<div class="grp ${cls||''}">${titulo} · ${money(arr.reduce((s,x)=>s+totalHoy(x.c),0))}</div><div class="card list">${arr.map(x=>filaCobro(x.L,x.c)).join('')}</div>` : '';
@@ -578,9 +604,12 @@ function vInicio(){
   ${grupo('Este mes ('+nombreMes(mes)+')', esteMes)}
   ${grupo('Próximo mes ('+nombreMes(prox)+')', proxMes)}
   ${!esteMes.length && !proxMes.length ? '<div class="card empty" style="margin-top:16px">No hay cobros pendientes para este mes ni el próximo.</div>' : ''}
-  ${atras.length ? `<div class="toolbar" style="margin-top:18px"><span class="grp" style="margin:0">Atrasados (${atras.length}) · ${money(atras.reduce((s,x)=>s+totalHoy(x.c),0))}</span>
+  ${atras.length || congs.length ? `<div class="toolbar" style="margin-top:18px"><span class="grp" style="margin:0">Atrasados (${atras.length})${atras.length ? ' · ' + money(atras.reduce((s,x)=>s+totalHoy(x.c),0)) : ''}${congs.length ? ` · ${congs.length} congelado${congs.length > 1 ? 's' : ''}` : ''}</span>
     <button class="btn sm" onclick="ocultarAtrasados(${!verAtrasados()})">${verAtrasados() ? 'Ocultar' : 'Mostrar'}</button></div>
-    ${verAtrasados() ? `<div class="card list">${atras.map(x=>filaCobro(x.L,x.c)).join('')}</div><p class="hint">Si una deuda ya no se va a cobrar por ahora, usa <b>Congelar</b> en el préstamo para que no aparezca aquí.</p>` : ''}` : ''}`;
+    ${verAtrasados() ? `${atras.length ? `<div class="card list">${atras.map(x=>filaCobro(x.L,x.c)).join('')}</div>` : ''}
+      ${congs.length ? `<div class="grp" style="margin-top:14px">Congelados · ${money(congs.reduce((s,L)=>s+pendientes(L).reduce((a,c)=>a+c.capital+c.interes,0),0))}</div>
+        <div class="card list">${congs.map(filaCongelado).join('')}</div>` : ''}
+      <p class="hint">Una deuda con más de ${diasCongelar()} días sin ningún pago se congela sola: no suma mora ni cuenta en los totales. También puedes congelar a mano con <b>Congelar</b> en el préstamo.</p>` : ''}` : ''}`;
 }
 
 function vPrestamos(){
@@ -616,7 +645,7 @@ function tarjeta(L){
       <button class="btn" onclick="toggle('${L.id}')">${abierto ? 'Ocultar' : 'Ver cuotas'}${nAdj ? ` · ${nAdj} archivo${nAdj > 1 ? 's' : ''}` : ''}</button>
       <button class="btn wa" onclick="enviarEstado('${L.id}')">Enviar estado</button>
       <button class="btn" onclick="corregir('${L.id}')">Corregir</button>
-      ${pend.length ? `<button class="btn" onclick="dlgAbono('${L.id}')">Abono</button><button class="btn warn" onclick="refinanciar('${L.id}')">Refinanciar</button><button class="btn" onclick="congelar('${L.id}')">${L.congelado ? 'Descongelar' : 'Congelar'}</button>` : ''}
+      ${pend.length ? `<button class="btn" onclick="dlgAbono('${L.id}')">Abono</button><button class="btn warn" onclick="refinanciar('${L.id}')">Refinanciar</button><button class="btn" onclick="congelar('${L.id}')">${esCongelado(L) ? 'Descongelar' : 'Congelar'}</button>` : ''}
       <button class="btn dan" onclick="eliminar('${L.id}')">Eliminar</button>
     </div>
     ${abierto ? tablaCuotas(L) + panelAdjuntos(L) : ''}
@@ -686,7 +715,7 @@ function vNuevo(){
 /* ---- Refinanciar / juntar deudas ---- */
 function deudasPendientes(){
   const t = hoy();
-  return S.prestamos.filter(L => !L.congelado && pendientes(L).length).map(L => {
+  return S.prestamos.filter(L => !esCongelado(L) && pendientes(L).length).map(L => {
     const pend = pendientes(L), venc = pend.filter(c => c.fecha <= t);
     return {L, cap:r2(pend.reduce((s, c) => s + c.capital, 0)), intPend:r2(pend.reduce((s, c) => s + c.interes, 0)),
       intVenc:r2(venc.reduce((s, c) => s + c.interes + moraDe(c), 0)), desde:pend[0].fecha};
@@ -812,7 +841,7 @@ function previa(){
   el.innerHTML = aviso + `<div class="hint" style="margin-bottom:8px">Cambia la fecha, el capital o el interés de cada cuota. Marca “Pagada” en las que ya te pagaron.
      <button class="btn sm" type="button" onclick="borrador.filas=generarFilas();previa()">↺ Volver al cálculo automático</button></div>
    <div class="tblwrap"><table class="edit"><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Capital / monto</th><th class="n">Interés</th><th class="n">Total</th><th title="Acuerdo sin cálculo: el monto va en la columna Capital">Monto fijo</th><th>Pagada</th><th></th></tr></thead><tbody id="filas">
-   ${b.filas.map((f,i)=>`<tr data-i="${i}"><td>${i+1}${f.tipo==='interes'?' <span class="chip amber">solo int.</span>':''}</td>
+   ${b.filas.map((f,i)=>`<tr data-i="${i}"><td>${i+1}${f.tipo==='interes'?' <span class="chip blue">solo int.</span>':''}</td>
      <td><input type="date" data-k="fecha" value="${f.fecha}"></td>
      <td class="n"><input type="number" step="any" data-k="capital" value="${f.capital}"></td>
      <td class="n"><input type="number" step="any" data-k="interes" value="${f.interes}"></td>
@@ -901,7 +930,7 @@ function datosClientes(){
     // Deuda, próximo pago y riesgo siempre se calculan con todo, porque son el estado de hoy.
     const ps = todos.filter(prestamoEnAnio), cs = todos.flatMap(L => L.cuotas), pendTodo = cs.filter(c => !c.pagado);
     // Deuda congelada: queda registrada y cuenta para el riesgo, pero no aparece como deuda del día.
-    const pend = todos.filter(L => !L.congelado).flatMap(L => pendientes(L)), cong = todos.filter(L => L.congelado).flatMap(L => pendientes(L));
+    const pend = todos.filter(L => !esCongelado(L)).flatMap(L => pendientes(L)), cong = todos.filter(L => esCongelado(L)).flatMap(L => pendientes(L));
     const pagadas = cs.filter(c => c.pagado && enAnio(c.fecha)), delAnio = cs.filter(c => enAnio(c.fecha));
     const ult = todos.at(-1), ultimoDe = f => todos.map(f).filter(Boolean).at(-1);
     return {k, prestamos:ps, todos, nombre:ult.cliente, apodo:ultimoDe(L => L.apodo) || '', tel:ultimoDe(L => L.tel) || '', ingreso:ultimoDe(L => L.ingreso) || 0,
@@ -911,7 +940,7 @@ function datosClientes(){
       ganado:r2(pagadas.reduce((s, c) => s + c.interes, 0)),
       ganadoTotal:r2(cs.filter(c => c.pagado).reduce((s, c) => s + c.interes, 0)),
       debe:r2(pend.reduce((s, c) => s + c.capital + c.interes, 0)),
-      atrasado:pend.some(c => c.fecha < hoy()), activos:todos.filter(L => !L.congelado && pendientes(L).length).length,
+      atrasado:pend.some(c => c.fecha < hoy()), activos:todos.filter(L => !esCongelado(L) && pendientes(L).length).length,
       cumpl:cumplimiento(delAnio), desde:todos.map(L => L.cuotas[0]?.fecha || L.creado).sort()[0],
       porCobrarInt:r2(pend.reduce((s, c) => s + c.interes, 0)),
       capRiesgo:r2(pendTodo.reduce((s, c) => s + c.capital, 0)),
@@ -1007,7 +1036,7 @@ function vCliente(k){
       <div class="acts" style="margin-top:10px">
         ${pendientes(L).length ? `<button class="btn sm pri" onclick="dlgAbono('${L.id}')">Registrar abono</button>` : ''}
         <button class="btn sm" onclick="corregir('${L.id}')">Corregir</button>
-        ${pendientes(L).length ? `<button class="btn sm" onclick="congelar('${L.id}')">${L.congelado ? 'Descongelar' : 'Congelar deuda'}</button>` : ''}
+        ${pendientes(L).length ? `<button class="btn sm" onclick="congelar('${L.id}')">${esCongelado(L) ? 'Descongelar' : 'Congelar deuda'}</button>` : ''}
         <button class="btn sm" onclick="abrirPrestamo('${L.id}')">Abrir en Préstamos</button>
         <button class="btn sm dan" onclick="eliminar('${L.id}')">Eliminar préstamo</button></div>
     </div>`;
@@ -1033,7 +1062,7 @@ function estadoFila(L, q, fx){
   return q.tipo === 'refi' ? `<span class="chip blue">Refinanciado · ${money(q.movido || 0)}</span>`
     : q.tipo === 'abono' ? `<span class="chip violet">Abono</span>`
     : q.pagado ? `<span class="chip green">Pagó ${fx(q.fechaPago)}</span> ${chipEstadoCumpl(q)}`
-    : L.congelado ? '<span class="chip gray">Congelado</span>' : q.fecha < t ? `<span class="chip red">Vencida</span> ${chipEstadoCumpl(q)}` : '<span class="chip gray">Pendiente</span>';
+    : esCongelado(L) ? '<span class="chip gray">Congelado</span>' : q.fecha < t ? `<span class="chip red">Vencida</span> ${chipEstadoCumpl(q)}` : '<span class="chip gray">Pendiente</span>';
 }
 /* Cuotas de un préstamo con columnas nombradas y totales, para corroborar la cuenta. */
 function tablaPrestamo(L){
@@ -1041,7 +1070,7 @@ function tablaPrestamo(L){
   const filas = L.cuotas.map((q, i) => {
     const tot = r2(q.capital + q.interes), refi = q.tipo === 'refi';
     if (!refi){ sum.cap += q.capital; sum.int += q.interes; if (q.pagado) sum.pag += tot; else sum.pend += tot; }
-    return `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t && !L.congelado ? 'late' : ''}">
+    return `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t && !esCongelado(L) ? 'late' : ''}">
       <td>${i + 1}${etiquetaTipo(q)}</td><td>${fx(q.fecha)}</td>
       <td class="n">${refi ? '—' : num(q.capital)}</td><td class="n">${refi ? '—' : num(q.interes)}</td><td class="n"><b>${refi ? '—' : num(tot)}</b></td>
       <td>${estadoFila(L, q, fx)}</td><td style="text-align:right">${btnObs(L, q)}</td></tr>`;
@@ -1090,8 +1119,8 @@ function abrirPrestamo(lid){ const L = buscarL(lid); filtro = L.cliente; abierto
 let mesSel = hoy().slice(0,7), filtroMes = 'todos';
 function moverMes(k){ recordar(); mesSel = addMonths(mesSel + '-01', k).slice(0,7); render(); }
 function filaMes(L, c){
-  const t = hoy(), st = c.tipo === 'refi' ? 'refi' : c.tipo === 'abono' ? 'abono' : !c.pagado && L.congelado ? 'cong' : c.pagado ? (c.tipo === 'interes' ? 'int' : 'ok') : c.fecha < t ? 'late' : 'pend';
-  const chip = c.pagado && c.tipo !== 'abono' && estadoCumpl(c) && estadoCumpl(c).k !== 'ok' ? `<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span> ${chipEstadoCumpl(c)}` : {ok:`<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span>`, int:`<span class="chip amber">✓ Solo interés ${fD(c.fechaPago)}</span>`,
+  const t = hoy(), st = c.tipo === 'refi' ? 'refi' : c.tipo === 'abono' ? 'abono' : !c.pagado && esCongelado(L) ? 'cong' : c.pagado ? (c.tipo === 'interes' ? 'int' : 'ok') : c.fecha < t ? 'late' : 'pend';
+  const chip = c.pagado && c.tipo !== 'abono' && estadoCumpl(c) && estadoCumpl(c).k !== 'ok' ? `<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span> ${chipEstadoCumpl(c)}` : {ok:`<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span>`, int:`<span class="chip blue">✓ Solo interés ${fD(c.fechaPago)}</span>`,
     late:`<span class="chip red">Atrasado ${daysBetween(c.fecha, t)} d</span>`, cong:'<span class="chip gray">Congelado</span>', pend:'<span class="chip gray">Pendiente</span>', refi:'<span class="chip blue">Refinanciado</span>', abono:`<span class="chip violet">Abono ${fD(c.fechaPago)}</span>`}[st];
   return `<div class="row mrow st-${st}">${avatar(L.cliente)}
     <div class="who"><b class="link" onclick="irCliente('${L.id}')">${esc(L.cliente)}</b>${L.modo === 'pct' ? ` <span class="hint">(${num(L.valor)}%)</span>` : ''}${chipEtq(L)} <span class="chip gray">${posicion(L, c)}</span>
@@ -1107,8 +1136,8 @@ function vMeses(){
   const porCobrar = m => r2(todas.filter(x => !x.c.pagado && mesKey(x.c.fecha) === m).reduce((s, x) => s + x.c.interes, 0));
   const del = todas.filter(x => mesKey(x.c.fecha) === mesSel).sort((a, b) => a.c.fecha.localeCompare(b.c.fecha) || a.L.cliente.localeCompare(b.L.cliente));
   const sum = (arr, f) => r2(arr.reduce((s, x) => s + f(x.c), 0)), tot = c => c.capital + c.interes;
-  const total = sum(del.filter(x => x.c.pagado || !x.L.congelado), tot), cobrado = sum(del.filter(x => x.c.pagado), tot), falta = r2(total - cobrado);
-  const pend = del.filter(x => !x.c.pagado && !x.L.congelado), pag = del.filter(x => x.c.pagado);
+  const total = sum(del.filter(x => x.c.pagado || !esCongelado(x.L)), tot), cobrado = sum(del.filter(x => x.c.pagado), tot), falta = r2(total - cobrado);
+  const pend = del.filter(x => !x.c.pagado && !esCongelado(x.L)), pag = del.filter(x => x.c.pagado);
   const lista = filtroMes === 'pend' ? pend : filtroMes === 'pag' ? pag : del;
   const meses = Array.from({length:12}, (_, i) => addMonths(mesSel + '-01', i - 8).slice(0,7));
   const barras = meses.map(m => ({m, g:ganado(m), p:porCobrar(m)})), max = Math.max(1, ...barras.map(b => b.g + b.p));
@@ -1145,7 +1174,7 @@ function vMeses(){
 
   <details class="card" style="margin-top:12px"><summary>Pagos recibidos en ${nombreMes(mesSel)}, por el día en que pagaron (${pagosMes.length}) · ${money(pagosMes.reduce((s, x) => s + x.c.capital + x.c.interes, 0))}</summary>
     <div class="tblwrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Cuota</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th></tr></thead><tbody>
-    ${pagosMes.map(p => `<tr><td>${fD(p.c.fechaPago)}</td><td>${esc(p.L.cliente)}</td><td>${posicion(p.L, p.c)}${p.c.tipo === 'interes' ? ' <span class="chip amber">solo int.</span>' : ''}</td><td class="n">${num(p.c.capital)}</td><td class="n">${num(p.c.interes)}</td><td class="n"><b>${num(p.c.capital + p.c.interes)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Sin pagos en este mes.</td></tr>'}
+    ${pagosMes.map(p => `<tr><td>${fD(p.c.fechaPago)}</td><td>${esc(p.L.cliente)}</td><td>${posicion(p.L, p.c)}${p.c.tipo === 'interes' ? ' <span class="chip blue">solo int.</span>' : ''}</td><td class="n">${num(p.c.capital)}</td><td class="n">${num(p.c.interes)}</td><td class="n"><b>${num(p.c.capital + p.c.interes)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Sin pagos en este mes.</td></tr>'}
     </tbody></table></div></details>`;
 }
 
@@ -1155,6 +1184,7 @@ function vRespaldo(){
   app.innerHTML = seccionNube() + `<h2>Mora por atraso</h2>
   <div class="card" style="padding:16px">
     <label style="max-width:260px">Mora por cada día de atraso (S/)<input type="number" min="0" step="any" value="${moraDia()}" onchange="S.moraDia=Math.max(0,+this.value||0);save()"></label>
+    <label style="max-width:260px;margin-top:12px">Congelar solo después de (días sin pagar)<input type="number" min="0" step="1" value="${diasCongelar()}" onchange="S.diasCongelar=Math.max(0,parseInt(this.value)||0);save()"><span class="hint" style="font-weight:400">0 = no congelar automáticamente</span></label>
     <label style="max-width:260px;margin-top:12px">Días de tolerancia para el cumplimiento<input type="number" min="0" step="1" value="${toleranciaDias()}" onchange="S.toleranciaDias=Math.max(0,parseInt(this.value)||0);save()"></label>
     <p class="hint" style="margin-bottom:0">Se suma sola desde el primer día de atraso y se cobra al registrar el pago. En cada cuota atrasada hay un botón <b>Exonerar</b> por si quieres perdonarla (por ejemplo, si al cliente no le pagaron en el trabajo). Pon 0 para no cobrar mora.</p>
   </div>
@@ -1676,7 +1706,7 @@ async function salirNube(){
 }
 function cortarNube(){ nube.subs.forEach(f => f()); nube.subs = []; nube.uid = null; nube.email = null; nube.ultimos = new Map(); nube.metaUlt = null; nube.estadosUlt = new Map(); }
 
-const metaDe = () => JSON.stringify({ultimoRespaldo:S.ultimoRespaldo || null, drive:S.drive || null, clientes:S.clientes || {}, moraDia:moraDia(), toleranciaDias:toleranciaDias()});
+const metaDe = () => JSON.stringify({ultimoRespaldo:S.ultimoRespaldo || null, drive:S.drive || null, clientes:S.clientes || {}, moraDia:moraDia(), toleranciaDias:toleranciaDias(), diasCongelar:diasCongelar()});
 const porCreacion = (a, b) => (a.creado || '').localeCompare(b.creado || '') || a.id.localeCompare(b.id);
 async function conectarDatos(u){
   if (nube.uid === u.uid && nube.subs.length) return;
@@ -1917,12 +1947,12 @@ function borrarCuota(lid, cid){
 /* Congelar: la deuda queda guardada (historial, riesgo) pero sale de Cobros, de los atrasados y de los totales del día,
    y no suma mora. Se puede descongelar cuando se quiera. */
 function congelar(lid){
-  const L = buscarL(lid), snap = snapshot();
-  if (!L.congelado && !confirm(`¿Congelar la deuda de ${L.cliente} (${money(pendientes(L).reduce((s, c) => s + c.capital + c.interes, 0))})? Queda guardada, pero ya no aparece en Cobros ni suma mora.`)) return;
-  L.congelado = !L.congelado;
-  if (L.congelado) pendientes(L).forEach(c => c.moraExonerada = true);
-  L.eventos.push({f:hoy(), t:L.congelado ? 'Deuda congelada' : 'Deuda descongelada'});
-  save(); toast(L.congelado ? `${L.cliente}: deuda congelada` : `${L.cliente}: deuda activa otra vez`, snap);
+  const L = buscarL(lid), snap = snapshot(), estaba = esCongelado(L);
+  if (!estaba && !confirm(`¿Congelar la deuda de ${L.cliente} (${money(pendientes(L).reduce((s, c) => s + c.capital + c.interes, 0))})? Queda guardada en Atrasados → Congelados, pero ya no aparece en Cobros ni suma mora.`)) return;
+  if (estaba){ L.congelado = false; L.descongelado = true; }       // descongelar (también si fue automático)
+  else { L.congelado = true; delete L.descongelado; pendientes(L).forEach(c => c.moraExonerada = true); }
+  L.eventos.push({f:hoy(), t:estaba ? 'Deuda descongelada' : 'Deuda congelada'});
+  save(); toast(estaba ? `${L.cliente}: deuda activa otra vez` : `${L.cliente}: deuda congelada`, snap);
 }
 function exonerar(lid, cid){
   const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), snap = snapshot();

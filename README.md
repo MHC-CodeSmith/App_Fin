@@ -11,7 +11,7 @@ App web para controlar préstamos y cobros. Moneda: soles (S/).
 - **Clientes**: buscador con lo recaudado de cada cliente (capital + interés), lo que debe, su % cumplido y hasta cuánto se le puede prestar sin riesgo; al tocar uno se ve todo su historial.
 - **Año en foco**: arriba se elige el año (al abrir la app siempre es el año actual). La pantalla principal muestra el resumen del año y Clientes, Préstamos y Meses muestran lo de ese año.
 - **Orden en el mes**: si un cliente tiene varios préstamos que empiezan el mismo mes, se marcan como *julio 1º*, *julio 2º*…
-- **Congelar deuda**: una deuda que ya no se va a cobrar por ahora queda guardada en el historial (y en el riesgo del cliente) pero sale de Cobros, de los atrasados y de los totales, y no suma mora. Se puede descongelar.
+- **Congelar deuda**: una deuda que ya no se va a cobrar por ahora queda guardada en el historial (y en el riesgo del cliente) y se ve en *Cobros → Atrasados → Congelados*, pero no cuenta en los totales ni suma mora. Se congela sola si pasan más de 120 días (configurable) sin ningún pago; *Descongelar* la vuelve a activar.
 - **Mora**: S/ 5 por día de atraso (configurable), se suma sola al registrar el pago; cada cuota tiene un botón **Exonerar** para perdonarla.
 - **Enviar estado**: enlace por WhatsApp para que el cliente vea solo su préstamo (en vivo si la nube está activa).
 - **Nube (Firebase)**: con sesión de Google, todo se sincroniza entre celular y computadora.
