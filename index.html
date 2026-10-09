@@ -985,11 +985,10 @@ function cajasCliente(c, corto){
     + (col > 0 ? `Si le prestas hasta ${money(col)} y no te devolviera nada, no perderías tu capital: solo dejarías de ganar parte de lo que ya ganaste con ${quien}.` : `Hoy está en 0: todavía no ganaste lo suficiente con ${quien} para cubrir lo que te debe, así que cualquier préstamo nuevo arriesga tu capital.`));
   // Deuda congelada: capital que está parado (posible pérdida) y la pérdida neta descontando lo ya ganado
   const perdNeta = r2(c.congeladoCap - c.ganadoTotal);
-  const perd = c.congeladoCap ? caja('red', 'Capital congelado', money(c.congeladoCap),
-    perdNeta > 0 ? `pérdida neta ${money(perdNeta)} (ya ganaste ${money(c.ganadoTotal)})` : `cubierto por lo ganado (${money(c.ganadoTotal)})`,
-    `Capital que le prestaste a ${quien} y que está en deudas congeladas: ${money(c.congeladoCap)} (sin contar el interés que dejó de pagar). `
-    + (perdNeta > 0 ? `Como ya ganaste ${money(c.ganadoTotal)} de interés con ${quien} desde el inicio, si nunca te paga lo congelado tu pérdida real sería ${money(c.congeladoCap)} − ${money(c.ganadoTotal)} = ${money(perdNeta)}.`
-      : `Ya ganaste ${money(c.ganadoTotal)} de interés con ${quien}, más que ese capital: aunque no te pague lo congelado, no pierdes dinero.`)) : '';
+  const perd = c.congeladoCap ? caja('red', 'Capital perdido', money(Math.max(0, perdNeta)),
+    `capital congelado ${money(c.congeladoCap)} · ya ganaste ${money(c.ganadoTotal)}`,
+    `Lo que de verdad pierdes con ${quien} si nunca te paga lo congelado: el capital congelado (${money(c.congeladoCap)}) menos el interés que ya te pagó desde el inicio (${money(c.ganadoTotal)}) = `
+    + (perdNeta > 0 ? `${money(perdNeta)}.` : `${money(0)}: lo ya ganado cubre ese capital, así que no pierdes dinero.`)) : '';
   if (corto) return `<div class="stats">${perd}${prox}${debe}${gan}${rec}${linea}${prest}</div>`;
   const ayUlt = 'El último día en que te pagó algo (cuota, interés o abono) y cuánto fue.';
   const ult = up ? caja('gray', 'Último pago', fD(up.fechaPago), money(up.capital + up.interes), ayUlt) : caja('gray', 'Último pago', '—', 'aún no paga', ayUlt);
