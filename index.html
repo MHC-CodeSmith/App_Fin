@@ -1105,14 +1105,8 @@ function estadoFila(L, q){
 }
 const celdaPago = (q, fx) => q.pagado && q.fechaPago && q.tipo !== 'refi' ? fx(q.fechaPago) : '<span class="hint">—</span>';
 /* Cuotas de un préstamo con columnas nombradas y totales, para corroborar la cuenta. */
-/* "Prestado" de cada cuota = capital que se debía al empezar esa cuota (monto del préstamo menos el capital
-   de las cuotas anteriores). Se puede escribir a mano en una cuota (q.saldo) sin afectar a las demás. */
-function saldoAuto(L, q){
-  let s = +L.capital || 0;
-  for (const c of L.cuotas){ if (c === q) break; if (c.tipo !== 'refi' && (c.pagado || c.fecha >= hoy())) s -= c.capital; }
-  return r2(Math.max(0, s));
-}
-const saldoCuota = (L, q) => q.saldo ?? saldoAuto(L, q);
+/* "Prestado" de cada cuota = el monto del préstamo. Se puede escribir a mano en una cuota (q.saldo) sin afectar a las demás. */
+const saldoCuota = (L, q) => q.saldo ?? (+L.capital || 0);
 // Interés acordado (el del préstamo) e interés adicional (mora / extra por demora) de una cuota.
 const intAdic = q => r2(q.mora || 0), intAcord = q => r2(q.interes - (q.mora || 0));
 function tablaPrestamo(L){
@@ -1153,7 +1147,7 @@ function tablaHistorial(c){
       <td style="white-space:nowrap;text-align:right">${btnObs(L, q)} ${q.tipo === 'refi' ? '' : q.tipo === 'abono' ? `<button class="btn sm" onclick="anularAbono('${L.id}','${q.id}')">Anular</button>`
         : `${!q.pagado ? `<button class="btn sm pri" onclick="pagar('${L.id}','${q.id}')">Pagó</button> ` : ''}<button class="btn sm" onclick="dlgCuota('${L.id}','${q.id}')" title="Editar">✎</button> <button class="btn sm dan" onclick="borrarCuota('${L.id}','${q.id}')" title="Borrar">✕</button>`}</td></tr>`;
   }
-  return `<div class="card"><div class="tblwrap"><table class="hist"><thead><tr><th>Fecha límite</th><th>Préstamo</th><th class="n" title="Capital que debía al empezar esa cuota (el préstamo menos lo ya pagado). Se puede cambiar en cada fila.">Prestado</th><th class="n">Capital</th><th class="n" title="El interés pactado del préstamo">Interés acordado</th><th class="n" title="Interés + : lo que se cobró de más por demora (mora)">Interés +</th><th class="n">Total</th><th>Pagó el</th><th>Estado</th><th title="Día en que se prestó">Pedido el</th><th></th></tr></thead>
+  return `<div class="card"><div class="tblwrap"><table class="hist"><thead><tr><th>Fecha límite</th><th>Préstamo</th><th class="n" title="Monto del préstamo. Se puede cambiar a mano en una fila sin afectar a las demás.">Prestado</th><th class="n">Capital</th><th class="n" title="El interés pactado del préstamo">Interés acordado</th><th class="n" title="Interés + : lo que se cobró de más por demora (mora)">Interés +</th><th class="n">Total</th><th>Pagó el</th><th>Estado</th><th title="Día en que se prestó">Pedido el</th><th></th></tr></thead>
     <tbody>${html}</tbody>
     <tfoot><tr><td colspan="3"><b>Total ${anioFoco === 'todos' ? '' : anioFoco}</b></td><td class="n"><b>${num(r2(sum.cap))}</b></td><td class="n"><b>${num(r2(sum.int))}</b></td><td class="n"><b>${num(r2(sum.adic))}</b></td><td class="n"><b>${num(r2(sum.cap + sum.int + sum.adic))}</b></td>
       <td colspan="4" class="hint">Pagado <b>${money(sum.pag)}</b> · Pendiente <b>${money(sum.pend)}</b></td></tr></tfoot></table></div></div>`;
@@ -2091,7 +2085,7 @@ function dlgCuota(lid, cid){
       <option value="normal" ${tipo === 'normal' ? 'selected' : ''}>Normal (capital + interés)</option>
       <option value="fijo" ${tipo === 'fijo' ? 'selected' : ''}>Monto fijo (acuerdo, sin cálculo)</option>
       <option value="interes" ${tipo === 'interes' ? 'selected' : ''}>Solo interés</option></select></label>
-    <label>Prestado en esta cuota (S/)<input name="sd" type="number" min="0" step="any" value="${c.saldo ?? ''}" placeholder="automático: ${num(saldoAuto(L, c))}"><span class="hint" style="font-weight:400">Solo cambia esta fila. Déjalo vacío para que se calcule solo.</span></label>
+    <label>Prestado en esta cuota (S/)<input name="sd" type="number" min="0" step="any" value="${c.saldo ?? ''}" placeholder="${num(L.capital)} (el del préstamo)"><span class="hint" style="font-weight:400">Solo cambia esta fila. Vacío = el monto del préstamo.</span></label>
     <label>Fecha límite<input name="f" type="date" value="${c.fecha}"></label>
     <label><span id="lblCap">Capital de esta cuota</span><input name="c" type="number" step="any" value="${c.capital}"></label>
     <label>Interés acordado<input name="i" type="number" step="any" value="${intAcord(c)}"></label>
