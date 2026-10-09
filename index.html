@@ -73,6 +73,8 @@ h2 small{color:var(--muted);font-weight:500}
 .chip.green{background:var(--brand-soft);color:var(--brand)}
 .chip.blue{background:var(--blue-soft);color:var(--blue)}
 .chip.gray{background:var(--line);color:var(--muted)}
+.atras{font-size:18px;line-height:1;padding:6px 12px;margin-right:-6px}
+.atras[hidden]{display:none}
 .anio{width:auto;padding:6px 10px;font-size:15px;font-weight:700;border-radius:10px;border:2px solid var(--brand);color:var(--brand);background:var(--brand-soft)}
 .anio-res{padding:14px;margin-bottom:12px}
 .anio-res h2{margin:0;font-size:20px}
@@ -226,7 +228,7 @@ details.card > summary{padding:12px 14px;cursor:pointer;font-weight:600;font-siz
 </head>
 <body>
 <header><div class="top">
-  <h1>Belu<span>Bank</span></h1><span id="nubeInd" class="hint" style="font-size:12px;font-weight:600"></span><select id="anioSel" class="anio" aria-label="Año que se muestra"></select>
+  <button id="btnAtras" class="btn atras" onclick="volver()" aria-label="Volver al paso anterior" title="Volver" hidden>←</button><h1>Belu<span>Bank</span></h1><span id="nubeInd" class="hint" style="font-size:12px;font-weight:600"></span><select id="anioSel" class="anio" aria-label="Año que se muestra"></select>
   <nav id="nav">
     <button data-v="inicio" class="on">Cobros</button>
     <button data-v="clientes">Clientes</button>
@@ -453,7 +455,27 @@ document.getElementById('anioSel').onchange = e => {
   render();
 };
 document.getElementById('nav').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.v === 'nuevo' && borrador.editId) borrador = nuevoBorrador(); if (b.dataset.v === 'clientes' && vista === 'clientes') clienteSel = null; ir(b.dataset.v); };
-function ir(v){ vista = v; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); render(); window.scrollTo(0,0); }
+/* Volver al paso anterior: se guarda cada pantalla visitada (y el botón "atrás" del celular también vuelve). */
+const pila = [];
+function recordar(){
+  if (location.hash) return;
+  const e = {vista, clienteSel, mesSel, y:window.scrollY}, top = pila.at(-1);
+  if (top && top.vista === e.vista && top.clienteSel === e.clienteSel && top.mesSel === e.mesSel) return;
+  pila.push(e); if (pila.length > 40) pila.shift();
+  try { history.pushState({belu:pila.length}, ''); } catch(err){}
+  pintarAtras();
+}
+function pintarAtras(){ const b = document.getElementById('btnAtras'); if (b) b.hidden = !pila.length; }
+function volver(){ if (!pila.length) return; try { history.back(); } catch(err){ deshacerPaso(); } }
+function deshacerPaso(){
+  const e = pila.pop(); if (!e) return;
+  if (vista === 'nuevo' && e.vista !== 'nuevo' && borrador.editId) borrador = nuevoBorrador();
+  vista = e.vista; clienteSel = e.clienteSel; mesSel = e.mesSel;
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === vista));
+  render(); window.scrollTo(0, e.y || 0); pintarAtras();
+}
+addEventListener('popstate', () => { if (!location.hash) deshacerPaso(); });
+function ir(v){ recordar(); vista = v; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); render(); window.scrollTo(0,0); }
 
 /* Etiqueta de cada préstamo: el mes en que empieza y, si el cliente tiene más de uno ese mes,
    su orden (julio 1º, julio 2º…). Se recalcula en cada pantalla. */
@@ -742,7 +764,7 @@ function refinanciar(lid){
   const L = buscarL(lid);
   borrador = {...nuevoBorrador(), tipo:'refi', cliente:L.cliente, apodo:L.apodo || '', tel:L.tel || '', ingreso:L.ingreso || '', clienteAuto:true,
     modo:'mes', valor:25, meses:Math.max(1, pendientes(L).length), primera:addMonths(hoy(), 1, L.dia), refi:{ids:[lid], interes:null, abono:0, q:''}};
-  vista = 'nuevo'; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === 'nuevo')); render(); window.scrollTo(0,0);
+  recordar(); vista = 'nuevo'; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === 'nuevo')); render(); window.scrollTo(0,0);
 }
 
 function avisoRiesgo(b){
@@ -827,7 +849,7 @@ function corregir(lid){
   const L = buscarL(lid);
   borrador = {...nuevoBorrador(), cliente:L.cliente, apodo:L.apodo || '', tel:L.tel, ingreso:L.ingreso || '', capital:L.capital, modo:L.modo, valor:L.valor,
     meses:L.meses, fechaPrestamo:L.fechaPrestamo || '', primera:L.cuotas[0]?.fecha || hoy(), nota:L.nota, personalizado:true, filas:L.cuotas.map(c => ({...c})), editId:L.id};
-  vista = 'nuevo'; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === 'nuevo')); render(); window.scrollTo(0,0);
+  recordar(); vista = 'nuevo'; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === 'nuevo')); render(); window.scrollTo(0,0);
 }
 async function guardarNuevo(){
   leerBorrador();
@@ -902,7 +924,7 @@ function datosClientes(){
 }
 let clienteSel = null, filtroCli = '', ordenCli = 'deuda', listaCli = [];
 function irCliente(lid){ clienteSel = claveCliente(buscarL(lid).cliente); ir('clientes'); }
-function verCliente(i){ clienteSel = listaCli[i].k; render(); window.scrollTo(0,0); }
+function verCliente(i){ recordar(); clienteSel = listaCli[i].k; render(); window.scrollTo(0,0); }
 /* Resumen del cliente en cajas de colores. En la lista van 4; en la ficha, 6. */
 /* Colchón: lo que ya ganó con el cliente menos el capital que aún le debe. Si es positivo,
    puede prestarle hasta ese monto sin poner en riesgo su propio dinero. */
@@ -957,7 +979,7 @@ function vCliente(k){
   const c = datosClientes().find(x => x.k === k);
   if (!c){ clienteSel = null; return vClientes(); }
   const ps = c.prestamos.slice().reverse(), activo = ps.find(L => pendientes(L).length);
-  app.innerHTML = `<div class="toolbar" style="margin-top:0"><button class="btn" onclick="clienteSel=null;render()">← Todos los clientes</button></div>
+  app.innerHTML = `<div class="toolbar" style="margin-top:0"><button class="btn" onclick="recordar();clienteSel=null;render()">← Todos los clientes</button></div>
   <div class="card" style="padding:16px">
     <div class="cli-hd">${avatar(c.nombre, true)}<div style="flex:1;min-width:0"><h2 style="margin:0;font-size:20px">${esc(c.nombre)}</h2>
       <div class="hint">${[c.apodo && `“${esc(c.apodo)}”`, c.tel && `Tel. ${esc(c.tel)}`, c.ingreso && `gana ${money(c.ingreso)} al mes`, `cliente desde ${nombreMes(c.desde.slice(0,7))}`].filter(Boolean).join(' · ')}</div></div>
@@ -1066,7 +1088,7 @@ function abrirPrestamo(lid){ const L = buscarL(lid); filtro = L.cliente; abierto
 
 /* ---------- Meses ---------- */
 let mesSel = hoy().slice(0,7), filtroMes = 'todos';
-function moverMes(k){ mesSel = addMonths(mesSel + '-01', k).slice(0,7); render(); }
+function moverMes(k){ recordar(); mesSel = addMonths(mesSel + '-01', k).slice(0,7); render(); }
 function filaMes(L, c){
   const t = hoy(), st = c.tipo === 'refi' ? 'refi' : c.tipo === 'abono' ? 'abono' : !c.pagado && L.congelado ? 'cong' : c.pagado ? (c.tipo === 'interes' ? 'int' : 'ok') : c.fecha < t ? 'late' : 'pend';
   const chip = c.pagado && c.tipo !== 'abono' && estadoCumpl(c) && estadoCumpl(c).k !== 'ok' ? `<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span> ${chipEstadoCumpl(c)}` : {ok:`<span class="chip green">✓ Pagado ${fD(c.fechaPago)}</span>`, int:`<span class="chip amber">✓ Solo interés ${fD(c.fechaPago)}</span>`,
