@@ -3,12 +3,12 @@
 App web para controlar préstamos y cobros. Moneda: soles (S/).
 
 - Cuotas con capital e interés (automáticas o con fecha y monto elegidos a mano para cada mes).
-- Ficha del cliente: apodo, teléfono, cuánto gana al mes (y qué % de su ingreso es la cuota), nota y archivos adjuntos (contratos, fotos, videos).
+- Ficha del cliente: apodo, teléfono, redes sociales (enlace o usuario), cuánto gana al mes (y qué % de su ingreso es la cuota), nota y archivos adjuntos (contratos, fotos, videos).
 - Atrasos, pagos de "solo interés", refinanciamientos y **Corregir** para arreglar errores.
 - **Semáforo de cumplimiento** de cada cliente (Cumple / Regular / Riesgoso) con tolerancia de 3 días; pagar solo el interés a tiempo no cuenta como incumplir.
 - **Monto fijo**: una cuota puede ser un monto acordado sin cálculo (por ejemplo, en un refinanciamiento).
 - **Meses**: cada mes como en la nota (cliente, %, capital − interés, fecha y si pagó), con lo cobrado, lo que falta, la ganancia del mes y un gráfico para saltar entre meses.
-- **Clientes**: buscador con lo recaudado de cada cliente (capital + interés), lo que debe, su % cumplido y hasta cuánto se le puede prestar sin riesgo; al tocar uno se ve todo su historial.
+- **Clientes**: **Editar datos** cambia el nombre, apodo, teléfono, ingreso y redes en todos sus préstamos; buscador con lo recaudado de cada cliente (capital + interés), lo que debe, su % cumplido y hasta cuánto se le puede prestar sin riesgo; al tocar uno se ve todo su historial.
 - **Año en foco**: arriba se elige el año (al abrir la app siempre es el año actual). La pantalla principal muestra el resumen del año y Clientes, Préstamos y Meses muestran lo de ese año.
 - **Orden en el mes**: si un cliente tiene varios préstamos que empiezan el mismo mes, se marcan como *julio 1º*, *julio 2º*…
 - **Congelar deuda**: una deuda que ya no se va a cobrar por ahora queda guardada en el historial (y en el riesgo del cliente) y se ve en *Cobros → Atrasados → Congelados*, pero no cuenta en los totales ni suma mora. Se congela sola si pasan más de 120 días (configurable) sin ningún pago; *Descongelar* la vuelve a activar.

@@ -161,6 +161,7 @@ td .link[title]{text-decoration:underline dotted;text-underline-offset:3px}
 .cli:hover{border-color:var(--brand)}
 .cli:active{transform:scale(.99)}
 .cli-hd{display:flex;gap:12px;align-items:center}
+.redes{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:4px;font-size:13px}.redes a{color:var(--blue);word-break:break-all}.redes span{color:var(--muted)}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px}
 .stat{border-radius:12px;padding:10px 12px;min-width:0;background:var(--bg);color:var(--ink)}
 .stat .l{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.8}
@@ -324,7 +325,7 @@ function crearPrestamo(o){
       return {id:uid(), fecha, capital:p.capital, interes:p.interes, tipo:'normal', pagado:pag, fechaPago: pag ? fecha : null};
     });
   }
-  return {id:uid(), cliente:o.cliente.trim(), fechaPrestamo:o.fechaPrestamo || '', apodo:(o.apodo||'').trim(), tel:(o.tel||'').trim(), ingreso:+o.ingreso || 0, nota:(o.nota||'').trim(),
+  return {id:uid(), cliente:o.cliente.trim(), fechaPrestamo:o.fechaPrestamo || '', apodo:(o.apodo||'').trim(), tel:(o.tel||'').trim(), redes:(o.redes||'').trim(), ingreso:+o.ingreso || 0, nota:(o.nota||'').trim(),
     capital:o.capital, modo:o.modo, valor:o.valor, meses:o.meses, interesTotal:r2(cuotas.reduce((s,c) => s + c.interes, 0)), dia:P(cuotas[0]?.fecha || o.primera).d,
     formula, creado:hoy(), cuotas, adjuntos:[], eventos:[{f:hoy(), t:'Préstamo registrado'}]};
 }
@@ -674,7 +675,7 @@ function tablaCuotas(L){
 
 /* ---------- Nuevo préstamo / Corregir ---------- */
 const ACCEPT = 'image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx';
-const nuevoBorrador = () => ({cliente:'', apodo:'', tel:'', ingreso:'', fechaPrestamo:hoy(), capital:1000, modo:'pct', valor:16, meses:2, primera:addMonths(hoy(),1), pagadas:0, nota:'',
+const nuevoBorrador = () => ({cliente:'', apodo:'', tel:'', redes:'', ingreso:'', fechaPrestamo:hoy(), capital:1000, modo:'pct', valor:16, meses:2, primera:addMonths(hoy(),1), pagadas:0, nota:'',
   personalizado:false, filas:null, editId:null, archivos:[], tipo:'nuevo', refi:{ids:[], interes:null, abono:0, q:''}, clienteAuto:true});
 let borrador = nuevoBorrador();
 const generarFilas = () => crearPrestamo({...borrador, cliente:'-', filas:null}).cuotas.map(c => ({fecha:c.fecha, capital:c.capital, interes:c.interes, tipo:'normal', pagado:c.pagado, fechaPago:c.fechaPago}));
@@ -690,6 +691,7 @@ function vNuevo(){
     <label>Apodo<input name="apodo" value="${esc(b.apodo)}" placeholder="Opcional"></label>
     <label>Teléfono (WhatsApp)<input name="tel" value="${esc(b.tel)}" placeholder="9XX XXX XXX" inputmode="tel"></label>
     <label>Cuánto gana al mes (S/)<input name="ingreso" type="number" min="0" step="any" value="${b.ingreso || ''}" placeholder="Opcional"></label>
+    <label class="full">Redes sociales<textarea name="redes" rows="2" placeholder="Opcional. Enlace o usuario, uno por línea (ej. @usuario o https://facebook.com/...)">${esc(b.redes || '')}</textarea></label>
     <label>${refi ? 'Capital del nuevo préstamo (S/)' : 'Capital prestado (S/)'}<input name="capital" type="number" min="1" step="any" value="${b.capital}" ${refi ? 'readonly title="Es la suma de las deudas elegidas"' : ''}></label>
     <label>Tipo de interés<select name="modo">
       <option value="pct" ${b.modo==='pct'?'selected':''}>% sobre el capital (total)</option>
@@ -770,7 +772,7 @@ function activarRefi(){
     if (borrador.clienteAuto && sel.length){
       const nombres = [...new Set(sel.map(d => d.L.cliente))];
       Object.assign(borrador, {cliente:nombres.length > 1 ? nombres.slice(0, -1).join(', ') + ' y ' + nombres.at(-1) : nombres[0],
-        tel:sel.map(d => d.L.tel).find(Boolean) || borrador.tel, apodo:nombres.length > 1 ? '' : (sel[0].L.apodo || borrador.apodo)});
+        tel:sel.map(d => d.L.tel).find(Boolean) || borrador.tel, redes:sel.map(d => d.L.redes).find(Boolean) || borrador.redes, apodo:nombres.length > 1 ? '' : (sel[0].L.apodo || borrador.apodo)});
     }
     vNuevo();
   };
@@ -793,7 +795,7 @@ function cambiarTipo(t){
 }
 function refinanciar(lid){
   const L = buscarL(lid);
-  borrador = {...nuevoBorrador(), tipo:'refi', cliente:L.cliente, apodo:L.apodo || '', tel:L.tel || '', ingreso:L.ingreso || '', clienteAuto:true,
+  borrador = {...nuevoBorrador(), tipo:'refi', cliente:L.cliente, apodo:L.apodo || '', tel:L.tel || '', redes:L.redes || '', ingreso:L.ingreso || '', clienteAuto:true,
     modo:'mes', valor:25, meses:Math.max(1, pendientes(L).length), primera:addMonths(hoy(), 1, L.dia), refi:{ids:[lid], interes:null, abono:0, q:''}};
   recordar(); vista = 'nuevo'; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === 'nuevo')); render(); window.scrollTo(0,0);
 }
@@ -819,7 +821,7 @@ const tamano = n => n > 1048576 ? (n/1048576).toFixed(1) + ' MB' : Math.max(1, M
 function leerBorrador(){
   const f = document.getElementById('fNuevo'), v = n => f.querySelector(`[name=${n}]`).value;
   const pers = f.querySelector('[name=personalizado]').checked;
-  Object.assign(borrador, {cliente:v('cliente'), apodo:v('apodo'), tel:v('tel'), ingreso:+v('ingreso')||0, capital:+v('capital')||0, modo:v('modo'), valor:+v('valor')||0,
+  Object.assign(borrador, {cliente:v('cliente'), apodo:v('apodo'), tel:v('tel'), redes:v('redes'), ingreso:+v('ingreso')||0, capital:+v('capital')||0, modo:v('modo'), valor:+v('valor')||0,
     meses:Math.max(1,parseInt(v('meses'))||1), fechaPrestamo:v('fechaPrestamo'), primera:v('primera')||hoy(), pagadas:Math.max(0,parseInt(v('pagadas'))||0), nota:v('nota'), personalizado:pers});
   if (borrador.tipo === 'refi' && !borrador.editId) borrador.capital = baseRefi();
   if (pers && !borrador.filas) borrador.filas = generarFilas();
@@ -878,7 +880,7 @@ function agregarFila(){
 }
 function corregir(lid){
   const L = buscarL(lid);
-  borrador = {...nuevoBorrador(), cliente:L.cliente, apodo:L.apodo || '', tel:L.tel, ingreso:L.ingreso || '', capital:L.capital, modo:L.modo, valor:L.valor,
+  borrador = {...nuevoBorrador(), cliente:L.cliente, apodo:L.apodo || '', tel:L.tel, redes:L.redes || '', ingreso:L.ingreso || '', capital:L.capital, modo:L.modo, valor:L.valor,
     meses:L.meses, fechaPrestamo:L.fechaPrestamo || '', primera:L.cuotas[0]?.fecha || hoy(), nota:L.nota, personalizado:true, filas:L.cuotas.map(c => ({...c})), editId:L.id};
   recordar(); vista = 'nuevo'; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === 'nuevo')); render(); window.scrollTo(0,0);
 }
@@ -935,7 +937,7 @@ function datosClientes(){
     const pend = todos.filter(L => !esCongelado(L)).flatMap(L => pendientes(L)), cong = todos.filter(L => esCongelado(L)).flatMap(L => pendientes(L));
     const pagadas = cs.filter(c => c.pagado && enAnio(c.fecha)), delAnio = cs.filter(c => enAnio(c.fecha));
     const ult = todos.at(-1), ultimoDe = f => todos.map(f).filter(Boolean).at(-1);
-    return {k, prestamos:ps, todos, nombre:ult.cliente, apodo:ultimoDe(L => L.apodo) || '', tel:ultimoDe(L => L.tel) || '', ingreso:ultimoDe(L => L.ingreso) || 0,
+    return {k, prestamos:ps, todos, nombre:ult.cliente, apodo:ultimoDe(L => L.apodo) || '', tel:ultimoDe(L => L.tel) || '', redes:ultimoDe(L => L.redes) || '', ingreso:ultimoDe(L => L.ingreso) || 0,
       prestado:r2(todos.filter(L => enAnio(L.cuotas[0]?.fecha || L.creado)).reduce((s, L) => s + (+L.capital || 0), 0)),
       nPrestados:todos.filter(L => enAnio(L.cuotas[0]?.fecha || L.creado)).length,
       cobrado:r2(pagadas.reduce((s, c) => s + c.capital + c.interes, 0)),
@@ -956,6 +958,40 @@ function datosClientes(){
 }
 let clienteSel = null, filtroCli = '', ordenCli = 'deuda', listaCli = [];
 function irCliente(lid){ clienteSel = claveCliente(buscarL(lid).cliente); ir('clientes'); }
+/* Redes sociales: un enlace o usuario por línea (o separados por coma). Los enlaces se pueden abrir. */
+function redesHtml(t){
+  return (t || '').split(/[\n,]+/).map(x => x.trim()).filter(Boolean).map(x => {
+    const url = /^https?:\/\//i.test(x) ? x : /^www\./i.test(x) || /^[\w-]+\.(com|pe|net|org|me)\b/i.test(x) ? 'https://' + x : '';
+    return url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(x.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''))}</a>` : `<span>${esc(x)}</span>`;
+  }).join('');
+}
+/* Editar los datos de la persona: se cambian en todos sus préstamos (nombre, apodo, teléfono, ingreso, redes). */
+function dlgCliente(lid){
+  const k0 = claveCliente(buscarL(lid).cliente), c = datosClientes().find(x => x.k === k0) || {nombre:buscarL(lid).cliente, apodo:'', tel:'', ingreso:0, redes:''};
+  const todos = S.prestamos.filter(L => claveCliente(L.cliente) === k0);
+  dialogo(`Datos de ${c.nombre}`, `<div class="form">
+    <label>Nombre<input name="cli" value="${esc(c.nombre)}"></label>
+    <label>Apodo<input name="apo" value="${esc(c.apodo)}" placeholder="Opcional"></label>
+    <label>Teléfono (WhatsApp)<input name="tel" value="${esc(c.tel)}" inputmode="tel"></label>
+    <label>Cuánto gana al mes (S/)<input name="ing" type="number" min="0" step="any" value="${c.ingreso || ''}"></label>
+    <label class="full">Redes sociales<textarea name="red" rows="3" placeholder="Enlace o usuario, uno por línea (ej. @usuario o https://facebook.com/...)">${esc(c.redes)}</textarea></label>
+    <p class="full hint" style="margin:0">Se cambia en sus ${todos.length} préstamo(s). Si pones el nombre de otro cliente que ya existe, sus historiales se juntan.</p></div>`,
+    b => {
+      const nombre = val(b,'cli').trim() || c.nombre, k1 = claveCliente(nombre);
+      const otro = k1 !== k0 && S.prestamos.some(L => claveCliente(L.cliente) === k1);
+      if (otro && !confirm(`Ya existe un cliente llamado "${nombre}". ¿Juntar los dos en uno solo?`)) return;
+      const s = snapshot();
+      for (const L of todos){
+        const antes = L.cliente;
+        L.cliente = nombre; L.apodo = val(b,'apo').trim(); L.tel = val(b,'tel').trim(); L.ingreso = +val(b,'ing') || 0; L.redes = val(b,'red').trim();
+        L.eventos.push({f:hoy(), t:antes !== nombre ? `Se cambió el nombre: ${antes} → ${nombre}` : 'Se editaron los datos del cliente'});
+      }
+      // El enlace de estado del cliente sigue siendo el mismo con el nombre nuevo.
+      if (k1 !== k0 && S.clientes?.[k0] && !S.clientes[k1]){ S.clientes[k1] = {...S.clientes[k0], nombre}; delete S.clientes[k0]; }
+      if (clienteSel === k0) clienteSel = k1;
+      save(); toast('Datos del cliente actualizados', s);
+    });
+}
 function verCliente(i){ recordar(); clienteSel = listaCli[i].k; render(); window.scrollTo(0,0); }
 /* Resumen del cliente en cajas de colores. En la lista van 4; en la ficha, 6. */
 /* Colchón: lo que ya ganó con el cliente menos el capital que aún le debe. Si es positivo,
@@ -1006,7 +1042,7 @@ function vClientes(){
   const todos = datosClientes(), q = filtroCli.toLowerCase();
   const orden = {deuda:(a,b) => b.debe - a.debe || a.nombre.localeCompare(b.nombre), az:(a,b) => a.nombre.localeCompare(b.nombre),
     prestado:(a,b) => b.prestado - a.prestado, ganado:(a,b) => b.ganado - a.ganado, recaudado:(a,b) => b.cobrado - a.cobrado, riesgo:(a,b) => colchon(b) - colchon(a), cumpl:(a,b) => (b.cumpl ?? -1) - (a.cumpl ?? -1)}[ordenCli];
-  listaCli = todos.filter(c => !q || c.nombre.toLowerCase().includes(q) || c.apodo.toLowerCase().includes(q)).sort(orden);
+  listaCli = todos.filter(c => !q || c.nombre.toLowerCase().includes(q) || c.apodo.toLowerCase().includes(q) || c.redes.toLowerCase().includes(q)).sort(orden);
   const suma = f => r2(todos.reduce((s, c) => s + c[f], 0));
   app.innerHTML = `<div class="kpis">
     <div class="kpi"><div class="l">Clientes</div><div class="v">${todos.length}</div><div class="s">${todos.filter(c => c.activos).length} con deuda activa</div></div>
@@ -1035,9 +1071,11 @@ function vCliente(k){
   app.innerHTML = `<div class="toolbar" style="margin-top:0"><button class="btn" onclick="recordar();clienteSel=null;render()">← Todos los clientes</button></div>
   <div class="card" style="padding:16px">
     <div class="cli-hd">${avatar(c.nombre, true)}<div style="flex:1;min-width:0"><h2 style="margin:0;font-size:20px">${esc(c.nombre)}</h2>
-      <div class="hint">${[c.apodo && `“${esc(c.apodo)}”`, c.tel && `Tel. ${esc(c.tel)}`, c.ingreso && `gana ${money(c.ingreso)} al mes`, `cliente desde ${nombreMes(c.desde.slice(0,7))}`].filter(Boolean).join(' · ')}</div></div>
+      <div class="hint">${[c.apodo && `“${esc(c.apodo)}”`, c.tel && `Tel. ${esc(c.tel)}`, c.ingreso && `gana ${money(c.ingreso)} al mes`, `cliente desde ${nombreMes(c.desde.slice(0,7))}`].filter(Boolean).join(' · ')}</div>
+      ${c.redes ? `<div class="redes">${redesHtml(c.redes)}</div>` : ''}</div>
       <div class="chips">${chipCliente(c)}${chipCumpl(c.cumpl)}</div></div>
     <div class="acts" style="margin-top:12px">
+      <button class="btn" onclick="dlgCliente('${c.todos[0].id}')">Editar datos</button>
       ${activo ? `<button class="btn wa" onclick="enviarEstado('${activo.id}')">Enviar estado</button>` : ''}
       <button class="btn pri" onclick="nuevoParaCliente()">+ Nuevo préstamo</button></div>
   </div>
@@ -1161,7 +1199,7 @@ function tablaHistorial(c){
 }
 function nuevoParaCliente(){
   const c = datosClientes().find(x => x.k === clienteSel); if (!c) return;
-  borrador = {...nuevoBorrador(), cliente:c.nombre, apodo:c.apodo, tel:c.tel, ingreso:c.ingreso || ''};
+  borrador = {...nuevoBorrador(), cliente:c.nombre, apodo:c.apodo, tel:c.tel, redes:c.redes, ingreso:c.ingreso || ''};
   ir('nuevo');
 }
 function abrirPrestamo(lid){ const L = buscarL(lid); filtro = L.cliente; abiertos.add(lid); ir('prestamos'); }
@@ -2073,13 +2111,14 @@ function dlgPrestamo(lid){
     <label>Cliente<input name="cli" value="${esc(L.cliente)}"></label>
     <label>Apodo<input name="apo" value="${esc(L.apodo || '')}"></label>
     <label>Teléfono<input name="tel" value="${esc(L.tel || '')}"></label>
+    <label class="full">Redes sociales<textarea name="red" rows="2" placeholder="Enlace o usuario, uno por línea">${esc(L.redes || '')}</textarea></label>
     <label class="full">Fórmula (como en tu nota)<textarea name="fo" rows="2">${esc(L.formula || '')}</textarea></label>
     <label class="full">Nota<textarea name="no" rows="3">${esc(L.nota || '')}</textarea></label>
     <p class="full hint" style="margin:0">Esto cambia los datos del préstamo. Las cuotas (fechas y montos de cada mes) se cambian con <b>Corregir cuotas</b> o con ✎ en cada fila.</p></div>`,
     b => {
       const s = snapshot(), antes = L.capital;
       L.capital = +val(b,'cap') || 0; L.valor = +val(b,'val') || 0; L.fechaPrestamo = val(b,'fp');
-      L.cliente = val(b,'cli').trim() || L.cliente; L.apodo = val(b,'apo').trim(); L.tel = val(b,'tel').trim();
+      L.cliente = val(b,'cli').trim() || L.cliente; L.apodo = val(b,'apo').trim(); L.tel = val(b,'tel').trim(); L.redes = val(b,'red').trim();
       L.formula = val(b,'fo').trim(); L.nota = val(b,'no').trim();
       L.eventos.push({f:hoy(), t:antes !== L.capital ? `Se editó el préstamo (monto ${money(antes)} → ${money(L.capital)})` : 'Se editaron los datos del préstamo'});
       save(); toast('Préstamo actualizado', s);
