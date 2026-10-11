@@ -6,6 +6,8 @@ App web para controlar préstamos y cobros. Moneda: soles (S/).
 - Ficha del cliente: apodo, teléfono, redes sociales (enlace o usuario), cuánto gana al mes (y qué % de su ingreso es la cuota), nota y archivos adjuntos (contratos, fotos, videos).
 - Atrasos, pagos de "solo interés", refinanciamientos y **Corregir** para arreglar errores.
 - **Semáforo de cumplimiento** de cada cliente (Cumple / Regular / Riesgoso) con tolerancia de 3 días; pagar solo el interés a tiempo no cuenta como incumplir.
+- **Duplicar** un préstamo: abre *Nuevo* con el mismo cliente, monto, interés y meses, para solo cambiar la fecha.
+- **Corregir cuotas**: en cada fila se puede cambiar fecha, prestado, capital, interés, monto fijo, pagada y la fecha de pago; también *Congelar esta deuda*.
 - **Monto fijo**: una cuota puede ser un monto acordado sin cálculo (por ejemplo, en un refinanciamiento).
 - **Meses**: cada mes como en la nota (cliente, %, capital − interés, fecha y si pagó), con lo cobrado, lo que falta, la ganancia del mes y un gráfico para saltar entre meses.
 - **Clientes**: **Editar datos** cambia el nombre, apodo, teléfono, ingreso y redes en todos sus préstamos; buscador con lo recaudado de cada cliente (capital + interés), lo que debe, su % cumplido y hasta cuánto se le puede prestar sin riesgo; al tocar uno se ve todo su historial.
@@ -109,6 +111,7 @@ El ID de cliente no es secreto (Google lo diseña para ir en el código de la p�
 - **Refinanciamiento / juntar deudas** (en *Nuevo* o con el botón *Refinanciar* de un préstamo): se eligen una o varias deudas pendientes, de una o varias personas. Nuevo capital = capital pendiente de las elegidas + interés no pagado (por defecto, interés y mora de las cuotas ya vencidas) − abono. Las cuotas pendientes de las deudas viejas se cierran y quedan marcadas como *Renovado*, enlazadas al préstamo nuevo.
 - **Mora**: `días de atraso × mora por día` (por defecto 5). Al registrar el pago se suma al interés de esa cuota y queda como ganancia. *Exonerar* la quita antes o después del pago.
 - **Sin riesgo hasta**: interés ya cobrado al cliente − capital que todavía debe. Un préstamo nuevo menor o igual a ese monto queda cubierto por lo ya ganado con esa persona (en *Nuevo* aparece el aviso).
+- **Pago a cuenta** (*Pagó una parte*): el cliente paga una cuota de a poco. Cada pago (monto y fecha) se descuenta de lo pactado, primero del capital o del interés (se elige). La cuota queda pagada cuando se completa, con la fecha del último pago (si fue fuera de fecha sale *FDF*). Lo que pague de más queda como *Interés +*. Cada pago se puede borrar.
 - **Abono**: si el cliente paga de más, el monto se descuenta de las próximas cuotas (primero capital, luego interés). Queda registrado como *abono* (cuenta como cobrado ese día) y las cuotas que llegan a 0 quedan *cubiertas*. Se puede anular.
 - **Cumplimiento (semáforo)**, por cuota según su fecha límite y los días de tolerancia (3 por defecto, configurable en *Respaldo*):
   - *A tiempo* (pagó completo hasta la fecha límite) y *Tolerancia* (pagó completo hasta 3 días después): cuentan 100 %.
