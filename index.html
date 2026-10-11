@@ -161,6 +161,10 @@ td .link[title]{text-decoration:underline dotted;text-underline-offset:3px}
 .cli:hover{border-color:var(--brand)}
 .cli:active{transform:scale(.99)}
 .cli-hd{display:flex;gap:12px;align-items:center}
+.card.ia{padding:14px}.ia-log{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto}.ia-log:empty{display:none}
+.ia-msg{padding:9px 12px;border-radius:12px;line-height:1.5;max-width:92%;font-size:14px}.ia-msg.yo{align-self:flex-end;background:var(--brand-soft);color:var(--brand)}
+.ia-msg.ia{align-self:flex-start;background:var(--bg)}.ia-msg.err{background:var(--red-soft);color:var(--red)}
+.ia-sug{display:flex;flex-wrap:wrap;gap:6px}.ia-in{display:flex;gap:8px;margin-top:10px}.ia-in input{flex:1;min-width:0}
 .mini-bar{display:inline-block;vertical-align:middle;width:70px;height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin-right:6px}.mini-bar i{display:block;height:100%}
 .row.riesgo{cursor:pointer}.row.alerta{border-left:4px solid var(--amber)}.row.alerta.red{border-left-color:var(--red)}.row.alerta.green{border-left-color:var(--brand)}
 h3.sub{font-size:14px;margin:14px 0 6px}h3.sub:first-child{margin-top:0}
@@ -1502,12 +1506,151 @@ function vAnalisis(){
       ${porMes.map(x => filaPat(x.m[0].toUpperCase() + x.m.slice(1), x.xs)).join('')}</tbody></table></div>
       <p class="hint" style="margin:10px 0 0">Con toda la historia (todos los años). "A tiempo" = pagó completo hasta ${tol} días después de la fecha límite. Cumplimiento = el mismo puntaje del semáforo. Con pocas cuotas en un grupo, el resultado puede cambiar mucho.</p></div>`;
 
-  app.innerHTML = `<h2>Rentabilidad <small>· ${anioFoco === 'todos' ? 'todos los años' : anioFoco + ' (cambia el año arriba)'}</small></h2>${rent}
+  app.innerHTML = cajaIA() + `<h2>Rentabilidad <small>· ${anioFoco === 'todos' ? 'todos los años' : anioFoco + ' (cambia el año arriba)'}</small></h2>${rent}
     <h2>Lo que va a entrar <small>· próximos 3 meses</small></h2>${caja}
     <h2>Alertas</h2>${alertasH}
     <h2>Riesgo por cliente <small>· de más riesgo a menos</small></h2>${riesgo}
     <h2>Patrones <small>· qué funciona mejor</small></h2>${patrones}`;
+  pintarIA();
 }
+
+/* ---------- Pregúntale a BeluBank (Gemini, con Firebase AI Logic) ----------
+   Gemini no hace las cuentas: entiende la pregunta, pide los datos con las "herramientas" de abajo
+   (que calcula la app, igual que en Análisis) y escribe la respuesta. Solo se envían nombres, apodos,
+   montos y fechas; nunca teléfonos, redes ni notas. */
+const IA_MODELOS = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash'];
+const ia = {chat:null, modelo:null, hist:[], ocupado:false, error:''};
+const r2s = x => r2(x || 0);
+function cuotaIA(L, c){
+  const e = c.tipo === 'refi' ? 'refinanciada' : c.tipo === 'abono' ? 'abono' : c.pagado ? (estadoCumpl(c)?.k === 'tarde' ? `pagada tarde (${atrasoDe(c)} días)` : 'pagada')
+    : esCongelado(L) ? 'congelada' : pagosDe(c).length ? 'pagada en parte' : c.fecha < hoy() ? `atrasada ${daysBetween(c.fecha, hoy())} días` : 'pendiente';
+  return {cliente:L.cliente, fecha_limite:c.fecha, capital:c.capital, interes:r2s(c.interes - (c.mora || 0)), interes_adicional_mora:r2s(c.mora), total:r2s(c.capital + c.interes),
+    estado:e, tipo:c.tipo === 'interes' ? 'solo interés' : c.fijo ? 'monto fijo' : c.tipo, pago_el:c.pagado ? c.fechaPago : null,
+    ...(pagosDe(c).length ? {pagos_a_cuenta:pagosDe(c).map(p => ({fecha:p.f, monto:p.m})), falta:faltaCuota(c)} : {}),
+    ...(!c.pagado && moraDe(c) ? {mora_a_hoy:moraDe(c)} : {})};
+}
+function buscarCliente(q){
+  const n = (q || '').trim().toLowerCase(), R = riesgos();
+  return R.find(r => r.nombre.toLowerCase() === n || r.apodo.toLowerCase() === n) || R.find(r => r.nombre.toLowerCase().includes(n) || (r.apodo && r.apodo.toLowerCase().includes(n)));
+}
+function conAnio(anio, f){ const a = anioFoco; anioFoco = anio ? String(anio) : 'todos'; try { return f(); } finally { anioFoco = a; } }
+const HERRAMIENTAS = {
+  resumen_general:{desc:'Totales del negocio: prestado, interés cobrado, capital perdido (congelado), ganancia neta, rendimiento mensual, capital en la calle y deuda total de hoy. Opcional: un año.',
+    params:{anio:['integer', 'Año (ej. 2025). Sin año = todos los años.']},
+    fn:({anio}) => conAnio(anio, () => {
+      const ps = S.prestamos.filter(prestamoEnAnio), pag = S.prestamos.flatMap(L => L.cuotas).filter(c => enAnio(c.fecha) && c.pagado && c.tipo !== 'refi');
+      const perd = r2s(ps.filter(esCongelado).flatMap(L => pendientes(L)).reduce((s, c) => s + capPend(c), 0)), int = r2s(pag.reduce((s, c) => s + c.interes, 0));
+      const term = ps.filter(L => !pendientes(L).length && !L.refinanciadoEn), cm = term.reduce((s, L) => s + capitalMeses(L), 0);
+      const intT = term.reduce((s, L) => s + L.cuotas.filter(c => c.pagado && c.tipo !== 'refi').reduce((a, c) => a + c.interes, 0), 0);
+      const act = S.prestamos.filter(L => !esCongelado(L)).flatMap(L => pendientes(L));
+      return {periodo:anio || 'todos los años', prestamos:ps.length, prestado:r2s(ps.reduce((s, L) => s + (+L.capital || 0), 0)), interes_cobrado:int,
+        de_eso_mora_o_interes_adicional:r2s(pag.reduce((s, c) => s + (c.mora || 0), 0)), capital_perdido_congelado:perd, ganancia_neta:r2s(int - perd),
+        rinde_al_mes_pct:cm ? r2s(intT / cm * 100) : null, hoy:{capital_en_la_calle:r2s(act.reduce((s, c) => s + capPend(c), 0)), interes_por_cobrar:r2s(act.reduce((s, c) => s + intPend(c), 0)),
+        deuda_total:r2s(act.reduce((s, c) => s + faltaCuota(c), 0)), cuotas_atrasadas:act.filter(c => c.fecha < hoy()).length}};
+    })},
+  lista_clientes:{desc:'Todos los clientes con: deuda de hoy, capital congelado, interés que ya pagó en total, cumplimiento %, riesgo (0-100, más alto = más confiable) y préstamo nuevo sugerido.',
+    params:{},
+    fn:() => ({clientes:riesgos().map(r => ({nombre:r.nombre, apodo:r.apodo || null, debe_hoy:r.debe, capital_congelado:r.capCong, interes_pagado_total:r2s(r.ps.flatMap(L => L.cuotas).filter(c => c.pagado && c.tipo !== 'refi').reduce((s, c) => s + c.interes, 0)),
+      cumplimiento_pct:r.cumpl, riesgo_puntaje:r.score, riesgo:r.nv.t, prestamo_sugerido:r.limite || (r.espera ? 'esperar' : 'no prestar'), atraso_hoy_dias:r.atrasoHoy, prestamos:r.ps.length}))})},
+  detalle_cliente:{desc:'Todo sobre un cliente: sus préstamos con cada cuota (fechas, montos, si pagó y cuándo), motivos de su riesgo y préstamo sugerido. Acepta nombre o apodo.',
+    params:{nombre:['string', 'Nombre o apodo del cliente', true]},
+    fn:({nombre}) => { const r = buscarCliente(nombre); if (!r) return {error:`No encontré a "${nombre}". Usa lista_clientes para ver los nombres.`};
+      return {nombre:r.nombre, apodo:r.apodo || null, riesgo_puntaje:r.score, riesgo:r.nv.t, motivos:r.motivos.map(m => m.t), prestamo_sugerido:r.limite || (r.espera ? 'esperar' : 'no prestar'), por_que:r.porQue,
+        sin_riesgo_hasta:r.colch, debe_hoy:r.debe, capital_congelado:r.capCong, cuota_vs_ingreso_pct:r.pctIng,
+        prestamos:r.ps.map(L => ({monto:L.capital, interes:L.modo === 'pct' ? `${L.valor}%` : `S/ ${L.valor}${L.modo === 'mes' ? ' por mes' : ' total'}`, prestado_el:L.fechaPrestamo || null,
+          congelado:esCongelado(L), cuotas:L.cuotas.map(c => cuotaIA(L, c))}))}; }},
+  cuotas:{desc:'Lista de cuotas entre dos fechas (por fecha límite), con totales. Sirve para "quién paga esta semana", "qué está atrasado", "qué cobré en marzo", etc.',
+    params:{desde:['string', 'Fecha inicial AAAA-MM-DD', true], hasta:['string', 'Fecha final AAAA-MM-DD', true], estado:['string', 'pendiente | atrasada | pagada | todas (por defecto todas)']},
+    fn:({desde, hasta, estado = 'todas'}) => {
+      let xs = S.prestamos.flatMap(L => L.cuotas.filter(c => c.tipo !== 'refi' && c.fecha >= desde && c.fecha <= hasta).map(c => ({L, c})));
+      if (estado === 'pagada') xs = xs.filter(x => x.c.pagado); else if (estado === 'pendiente') xs = xs.filter(x => !x.c.pagado && !esCongelado(x.L));
+      else if (estado === 'atrasada') xs = xs.filter(x => !x.c.pagado && !esCongelado(x.L) && x.c.fecha < hoy());
+      xs.sort((a, b) => a.c.fecha.localeCompare(b.c.fecha));
+      return {cantidad:xs.length, total:r2s(xs.reduce((s, x) => s + (x.c.pagado ? x.c.capital + x.c.interes : faltaCuota(x.c)), 0)),
+        total_interes:r2s(xs.reduce((s, x) => s + (x.c.pagado ? x.c.interes : intPend(x.c)), 0)), cuotas:xs.slice(0, 150).map(x => cuotaIA(x.L, x.c)), recortado:xs.length > 150}; }},
+  por_mes:{desc:'Mes a mes de un año (por fecha límite): cobrado, ganancia (interés cobrado) y lo que falta cobrar.',
+    params:{anio:['integer', 'Año, ej. 2025', true]},
+    fn:({anio}) => ({anio, meses:Array.from({length:12}, (_, i) => { const m = `${anio}-${pad(i + 1)}`, cs = S.prestamos.flatMap(L => L.cuotas.filter(c => c.tipo !== 'refi' && c.fecha.startsWith(m)).map(c => ({L, c})));
+      const pg = cs.filter(x => x.c.pagado), pe = cs.filter(x => !x.c.pagado && !esCongelado(x.L));
+      return {mes:nombreMes(m), cuotas:cs.length, cobrado:r2s(pg.reduce((s, x) => s + x.c.capital + x.c.interes, 0)), ganancia:r2s(pg.reduce((s, x) => s + x.c.interes, 0)), falta_cobrar:r2s(pe.reduce((s, x) => s + faltaCuota(x.c), 0))}; })})},
+  prevision:{desc:'Lo que va a entrar los próximos 3 meses: programado y probable según cómo paga cada cliente.',
+    params:{},
+    fn:() => { const R = new Map(riesgos().map(r => [r.k, r])), t = hoy(), pend = S.prestamos.filter(L => !esCongelado(L)).flatMap(L => pendientes(L).map(c => ({c, p:R.get(claveCliente(L.cliente))?.pPago ?? 0.8})));
+      const fila = xs => ({programado:r2s(xs.reduce((s, x) => s + faltaCuota(x.c), 0)), probable:r2s(xs.reduce((s, x) => s + faltaCuota(x.c) * x.p, 0)), cuotas:xs.length});
+      return {ya_vencido:fila(pend.filter(x => x.c.fecha < t)), meses:[0, 1, 2].map(i => { const m = addMonths(t.slice(0, 7) + '-01', i).slice(0, 7); return {mes:nombreMes(m), ...fila(pend.filter(x => x.c.fecha >= t && x.c.fecha.startsWith(m)))}; })}; }},
+};
+function declaraciones(SC){
+  return Object.entries(HERRAMIENTAS).map(([name, h]) => {
+    const props = {}, opc = [];
+    for (const [k, [tipo, d, req]] of Object.entries(h.params)){ props[k] = tipo === 'integer' ? SC.integer({description:d}) : SC.string({description:d}); if (!req) opc.push(k); }
+    return {name, description:h.desc, ...(Object.keys(props).length ? {parameters:SC.object({properties:props, optionalProperties:opc})} : {})};
+  });
+}
+const instruccionIA = () => `Eres el asistente de BeluBank, la app de préstamos de Belén en Perú (moneda: soles, S/). Hoy es ${fDa(hoy())}.
+Responde en español, corto y claro, como a una amiga que presta dinero. Usa listas cortas cuando ayuden.
+REGLAS: Todos los números tienen que salir de las herramientas; nunca inventes datos ni nombres. Si necesitas un total, usa los totales que dan las herramientas en vez de sumar tú. Si no tienes el dato, dilo.
+Cómo funciona el negocio: cada préstamo se paga en cuotas (capital + interés) con una fecha límite; las cuentas se hacen por fecha límite. Mora: S/ ${moraDia()} por día de atraso (se puede exonerar); "interés adicional" = mora o extra cobrado. Tolerancia: ${toleranciaDias()} días. "Solo interés": pagó solo el interés y la deuda se corrió un mes. Deuda congelada: no paga hace más de ${diasCongelar()} días; no suma mora y se cuenta como capital perdido. "Sin riesgo hasta" = interés que ya pagó el cliente − capital que aún debe. Riesgo: puntaje 0-100 (75+ bajo, 50-74 medio, menos de 50 alto).
+Las fechas muéstralas como dd/mm/aaaa. Si te piden un consejo (prestar o no), da tu opinión con los datos y recuerda que ella conoce a la persona.`;
+async function modeloIA(){
+  if (ia.modelo) return ia.modelo;
+  const fbApp = nube.fb?.app || (await import(FB_URL + 'firebase-app.js')).initializeApp(FIREBASE, 'ia');
+  const ai = await import(FB_URL + 'firebase-ai.js');
+  const inst = ai.getAI(fbApp, {backend:new ai.GoogleAIBackend()});
+  ia.crear = nombre => ai.getGenerativeModel(inst, {model:nombre, systemInstruction:instruccionIA(), tools:[{functionDeclarations:declaraciones(ai.Schema)}]});
+  return ia.modelo = IA_MODELOS[0];
+}
+async function preguntarIA(texto){
+  texto = (texto || '').trim(); if (!texto || ia.ocupado) return;
+  ia.hist.push({rol:'yo', t:texto}); ia.ocupado = true; ia.error = ''; pintarIA();
+  try {
+    await modeloIA();
+    let res;
+    for (let intento = 0; ; intento++){
+      try {
+        if (!ia.chat) ia.chat = ia.crear(ia.modelo).startChat();
+        res = await ia.chat.sendMessage(texto); break;
+      } catch (e){
+        // Si el modelo ya no existe, se prueba el siguiente de la lista.
+        const sig = IA_MODELOS[IA_MODELOS.indexOf(ia.modelo) + 1];
+        if (/not found|404|not supported/i.test(e.message || '') && sig && intento < IA_MODELOS.length){ ia.modelo = sig; ia.chat = null; continue; }
+        throw e;
+      }
+    }
+    for (let i = 0; i < 6; i++){
+      const calls = res.response.functionCalls?.() || [];
+      if (!calls.length) break;
+      const partes = calls.map(c => { let r; try { r = HERRAMIENTAS[c.name] ? HERRAMIENTAS[c.name].fn(c.args || {}) : {error:'herramienta desconocida'}; } catch (e){ r = {error:String(e.message || e)}; }
+        return {functionResponse:{name:c.name, response:r}}; });
+      res = await ia.chat.sendMessage(partes);
+    }
+    ia.hist.push({rol:'ia', t:res.response.text() || '(sin respuesta)'});
+  } catch (e){
+    const m = String(e.message || e);
+    ia.error = /api-not-enabled|not been used|disabled|AI Logic|PERMISSION_DENIED|403/i.test(m)
+      ? 'Falta activar Gemini en Firebase: en la consola de Firebase, AI Logic → Comenzar → Gemini Developer API.'
+      : /quota|429|RESOURCE_EXHAUSTED/i.test(m) ? 'Se acabó el límite gratis de preguntas por ahora. Prueba en unos minutos.'
+      : !navigator.onLine ? 'Sin internet: el asistente necesita conexión.' : 'No se pudo responder: ' + m.slice(0, 200);
+    ia.chat = null;
+  } finally { ia.ocupado = false; pintarIA(); }
+}
+// Texto de Gemini → HTML sencillo (negritas, listas, saltos de línea)
+const mdIA = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^\s*[-*] (.*)$/gm, '• $1').replace(/\n/g, '<br>');
+const SUGERENCIAS_IA = ['¿Quién me debe más y desde cuándo?', '¿Cuánto gané este año y cuánto el anterior?', '¿Quién paga esta semana?', '¿Le presto 1000 a Karo?', '¿Qué clientes están empeorando?'];
+function pintarIA(){
+  const el = document.getElementById('iaBox'); if (!el) return;
+  el.querySelector('.ia-log').innerHTML = ia.hist.map(m => `<div class="ia-msg ${m.rol}">${m.rol === 'ia' ? mdIA(m.t) : esc(m.t)}</div>`).join('')
+    + (ia.ocupado ? '<div class="ia-msg ia hint">Pensando…</div>' : '') + (ia.error ? `<div class="ia-msg err">${esc(ia.error)}</div>` : '');
+  el.querySelector('.ia-sug').style.display = ia.hist.length ? 'none' : '';
+  el.querySelector('button.pri').disabled = ia.ocupado;
+  const log = el.querySelector('.ia-log'); log.scrollTop = log.scrollHeight;
+}
+function enviarIA(){ const i = document.getElementById('iaIn'); const t = i.value; i.value = ''; preguntarIA(t); }
+const cajaIA = () => `<div class="card ia" id="iaBox"><div class="toolbar" style="margin:0 0 8px"><b>Pregúntale a BeluBank</b><span class="hint">con Gemini</span><span style="flex:1"></span>
+    ${ia.hist.length ? '<button class="btn sm" onclick="ia.hist=[];ia.chat=null;ia.error=\'\';pintarIA()">Nueva conversación</button>' : ''}</div>
+  <div class="ia-log"></div>
+  <div class="ia-sug">${SUGERENCIAS_IA.map(s => `<button class="btn sm" onclick="preguntarIA(this.textContent)">${esc(s)}</button>`).join('')}</div>
+  <div class="ia-in"><input id="iaIn" placeholder="Escribe tu pregunta…" onkeydown="if(event.key==='Enter'){event.preventDefault();enviarIA()}"><button class="btn pri" onclick="enviarIA()">Preguntar</button></div>
+  <p class="hint" style="margin:6px 0 0">Las cuentas las hace la app; Gemini solo lee los resultados y responde. Se envían nombres, apodos, montos y fechas (nunca teléfonos, redes ni notas).</p></div>`;
 
 /* ---------- Respaldo ---------- */
 function vRespaldo(){
