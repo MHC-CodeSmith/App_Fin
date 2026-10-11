@@ -1515,11 +1515,12 @@ function vAnalisis(){
 }
 
 /* ---------- Pregúntale a BeluBank (Gemini, con Firebase AI Logic) ----------
-   Gemini no hace las cuentas: entiende la pregunta, pide los datos con las "herramientas" de abajo
-   (que calcula la app, igual que en Análisis) y escribe la respuesta. Solo se envían nombres, apodos,
+   Gemini no hace las cuentas: la app calcula todo (igual que en Análisis), se lo pasa junto con la
+   pregunta y Gemini responde leyendo esos números. Solo se envían nombres, apodos,
    montos y fechas; nunca teléfonos, redes ni notas. */
-const IA_MODELOS = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash'];
-const ia = {chat:null, modelo:null, hist:[], ocupado:false, error:''};
+// En orden de preferencia; si a uno se le acaba la cuota gratis del día, se usa el siguiente.
+const IA_MODELOS = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-flash-lite-latest'];
+const ia = {contents:[], modelo:null, hist:[], ocupado:false, error:''};
 const r2s = x => r2(x || 0);
 function cuotaIA(L, c){
   const e = c.tipo === 'refi' ? 'refinanciada' : c.tipo === 'abono' ? 'abono' : c.pagado ? (estadoCumpl(c)?.k === 'tarde' ? `pagada tarde (${atrasoDe(c)} días)` : 'pagada')
@@ -1534,6 +1535,7 @@ function buscarCliente(q){
   return R.find(r => r.nombre.toLowerCase() === n || r.apodo.toLowerCase() === n) || R.find(r => r.nombre.toLowerCase().includes(n) || (r.apodo && r.apodo.toLowerCase().includes(n)));
 }
 function conAnio(anio, f){ const a = anioFoco; anioFoco = anio ? String(anio) : 'todos'; try { return f(); } finally { anioFoco = a; } }
+// Cálculos que se le pasan a Gemini (cada uno con su descripción).
 const HERRAMIENTAS = {
   resumen_general:{desc:'Totales del negocio: prestado, interés cobrado, capital perdido (congelado), ganancia neta, rendimiento mensual, capital en la calle y deuda total de hoy. Opcional: un año.',
     params:{anio:['integer', 'Año (ej. 2025). Sin año = todos los años.']},
@@ -1573,68 +1575,91 @@ const HERRAMIENTAS = {
     fn:({anio}) => ({anio, meses:Array.from({length:12}, (_, i) => { const m = `${anio}-${pad(i + 1)}`, cs = S.prestamos.flatMap(L => L.cuotas.filter(c => c.tipo !== 'refi' && c.fecha.startsWith(m)).map(c => ({L, c})));
       const pg = cs.filter(x => x.c.pagado), pe = cs.filter(x => !x.c.pagado && !esCongelado(x.L));
       return {mes:nombreMes(m), cuotas:cs.length, cobrado:r2s(pg.reduce((s, x) => s + x.c.capital + x.c.interes, 0)), ganancia:r2s(pg.reduce((s, x) => s + x.c.interes, 0)), falta_cobrar:r2s(pe.reduce((s, x) => s + faltaCuota(x.c), 0))}; })})},
+  patrones:{desc:'Qué funciona mejor en toda la historia: cumplimiento (% a tiempo) e interés ganado por tasa de interés, por monto del préstamo, clientes nuevos vs. que repiten y por mes del año.',
+    params:{},
+    fn:() => {
+      const ev = S.prestamos.flatMap(L => evaluables(L.cuotas).map(c => ({L, c})));
+      const grupo = xs => { const r = semaforo(xs.map(x => x.c)); return {cuotas:r.n, a_tiempo_pct:r.n ? pct(r.ok + r.tol, r.n) : null, cumplimiento_pct:r.pct,
+        interes_ganado:r2s(xs.filter(x => x.c.pagado).reduce((s, x) => s + x.c.interes, 0)), prestamos:new Set(xs.map(x => x.L)).size}; };
+      const tramo = (f, ts) => Object.fromEntries(ts.map(([n, a, b]) => [n, grupo(ev.filter(x => { const v = f(x.L); return v >= a && v <= b; }))]));
+      const prim = new Set(), vistos = new Set();
+      for (const L of S.prestamos.slice().sort((a, b) => (a.cuotas[0]?.fecha || '').localeCompare(b.cuotas[0]?.fecha || ''))){ const k = claveCliente(L.cliente); if (!vistos.has(k)){ vistos.add(k); prim.add(L); } }
+      return {por_tasa:tramo(tasaDe, [['hasta 15%', 0, 15], ['16-20%', 15.01, 20], ['21-25%', 20.01, 25], ['mas de 25%', 25.01, 1e9]]),
+        por_monto:tramo(L => +L.capital || 0, [['hasta 300', 0, 300], ['301-1000', 300.01, 1000], ['mas de 1000', 1000.01, 1e12]]),
+        primer_prestamo:grupo(ev.filter(x => prim.has(x.L))), clientes_que_repiten:grupo(ev.filter(x => !prim.has(x.L))),
+        por_mes_del_anio:Object.fromEntries(MESL.map((m, i) => [m, grupo(ev.filter(x => +x.c.fecha.slice(5, 7) === i + 1))]))};
+    }},
   prevision:{desc:'Lo que va a entrar los próximos 3 meses: programado y probable según cómo paga cada cliente.',
     params:{},
     fn:() => { const R = new Map(riesgos().map(r => [r.k, r])), t = hoy(), pend = S.prestamos.filter(L => !esCongelado(L)).flatMap(L => pendientes(L).map(c => ({c, p:R.get(claveCliente(L.cliente))?.pPago ?? 0.8})));
       const fila = xs => ({programado:r2s(xs.reduce((s, x) => s + faltaCuota(x.c), 0)), probable:r2s(xs.reduce((s, x) => s + faltaCuota(x.c) * x.p, 0)), cuotas:xs.length});
       return {ya_vencido:fila(pend.filter(x => x.c.fecha < t)), meses:[0, 1, 2].map(i => { const m = addMonths(t.slice(0, 7) + '-01', i).slice(0, 7); return {mes:nombreMes(m), ...fila(pend.filter(x => x.c.fecha >= t && x.c.fecha.startsWith(m)))}; })}; }},
 };
-function declaraciones(SC){
-  return Object.entries(HERRAMIENTAS).map(([name, h]) => {
-    const props = {}, opc = [];
-    for (const [k, [tipo, d, req]] of Object.entries(h.params)){ props[k] = tipo === 'integer' ? SC.integer({description:d}) : SC.string({description:d}); if (!req) opc.push(k); }
-    return {name, description:h.desc, ...(Object.keys(props).length ? {parameters:SC.object({properties:props, optionalProperties:opc})} : {})};
-  });
-}
 const instruccionIA = () => `Eres el asistente de BeluBank, la app de préstamos de Belén en Perú (moneda: soles, S/). Hoy es ${fDa(hoy())}.
 Responde en español, corto y claro, como a una amiga que presta dinero. Usa listas cortas cuando ayuden.
-REGLAS: Todos los números tienen que salir de las herramientas; nunca inventes datos ni nombres. Si necesitas un total, usa los totales que dan las herramientas en vez de sumar tú. Si no tienes el dato, dilo.
+REGLAS: Todos los números tienen que salir de los DATOS de abajo; nunca inventes datos ni nombres. Usa los totales que ya vienen calculados en vez de sumar tú; si tienes que sumar, hazlo con cuidado y muestra la suma. Si no tienes el dato, dilo.
 Cómo funciona el negocio: cada préstamo se paga en cuotas (capital + interés) con una fecha límite; las cuentas se hacen por fecha límite. Mora: S/ ${moraDia()} por día de atraso (se puede exonerar); "interés adicional" = mora o extra cobrado. Tolerancia: ${toleranciaDias()} días. "Solo interés": pagó solo el interés y la deuda se corrió un mes. Deuda congelada: no paga hace más de ${diasCongelar()} días; no suma mora y se cuenta como capital perdido. "Sin riesgo hasta" = interés que ya pagó el cliente − capital que aún debe. Riesgo: puntaje 0-100 (75+ bajo, 50-74 medio, menos de 50 alto).
 Las fechas muéstralas como dd/mm/aaaa. Si te piden un consejo (prestar o no), da tu opinión con los datos y recuerda que ella conoce a la persona.`;
+/* Todos los datos ya calculados por la app, en un solo bloque: así cada pregunta es UNA sola llamada
+   a Gemini (la cuota gratis cuenta llamadas, no preguntas). Cuotas: [fecha límite, capital, interés, interés +, estado, pagó el]. */
+function contextoIA(){
+  const anios = [...new Set(S.prestamos.flatMap(L => L.cuotas.map(c => c.fecha.slice(0, 4))))].sort();
+  const cli = riesgos();
+  const corto = c => { const x = cuotaIA(prestamoDeCuota(c), c); return [x.fecha_limite, x.capital, x.interes, x.interes_adicional_mora || 0, x.estado + (x.tipo !== 'normal' ? ` (${x.tipo})` : ''), x.pago_el || '',
+    ...(x.pagos_a_cuenta ? [`pagos a cuenta: ${x.pagos_a_cuenta.map(p => `${p.monto} el ${p.fecha}`).join(', ')}; falta ${x.falta}`] : []), ...(x.mora_a_hoy ? [`mora a hoy ${x.mora_a_hoy}`] : [])]; };
+  return {
+    resumen_todos_los_anios:HERRAMIENTAS.resumen_general.fn({}),
+    resumen_por_anio:anios.map(a => HERRAMIENTAS.resumen_general.fn({anio:+a})),
+    mes_a_mes:Object.fromEntries(anios.map(a => [a, HERRAMIENTAS.por_mes.fn({anio:+a}).meses.filter(m => m.cuotas)])),
+    prevision_proximos_meses:HERRAMIENTAS.prevision.fn(),
+    patrones:HERRAMIENTAS.patrones.fn(),
+    clientes:cli.map(r => ({nombre:r.nombre, apodo:r.apodo || undefined, numero_de_prestamos:r.ps.length, riesgo:`${r.nv.t} (${r.score}/100)`, motivos:r.motivos.map(m => m.t), prestamo_sugerido:r.limite || (r.espera ? 'esperar' : 'no prestar'),
+      por_que_ese_monto:r.porQue, debe_hoy:r.debe, capital_congelado:r.capCong || undefined, sin_riesgo_hasta:r.colch, cumplimiento_pct:r.cumpl,
+      interes_pagado_total:r2s(r.ps.flatMap(L => L.cuotas).filter(c => c.pagado && c.tipo !== 'refi').reduce((s, c) => s + c.interes, 0)),
+      capital_devuelto_total:r2s(r.ps.flatMap(L => L.cuotas).filter(c => c.pagado && c.tipo !== 'refi').reduce((s, c) => s + c.capital, 0)),
+      prestamos:r.ps.map(L => ({monto:L.capital, interes:L.modo === 'pct' ? `${L.valor}%` : `S/ ${L.valor}${L.modo === 'mes' ? ' por mes' : ' total'}`,
+        ...(L.fechaPrestamo ? {prestado_el:L.fechaPrestamo} : {}), ...(esCongelado(L) ? {congelado:true} : {}), cuotas:L.cuotas.filter(c => c.tipo !== 'refi').map(corto)}))})),
+  };
+}
 async function modeloIA(){
-  if (ia.modelo) return ia.modelo;
+  if (ia.crear) return;
   const fbApp = nube.fb?.app || (await import(FB_URL + 'firebase-app.js')).initializeApp(FIREBASE, 'ia');
   const ai = await import(FB_URL + 'firebase-ai.js');
   const inst = ai.getAI(fbApp, {backend:new ai.GoogleAIBackend()});
-  ia.crear = nombre => ai.getGenerativeModel(inst, {model:nombre, systemInstruction:instruccionIA(), tools:[{functionDeclarations:declaraciones(ai.Schema)}]});
-  return ia.modelo = IA_MODELOS[0];
+  ia.crear = (nombre, sistema) => ai.getGenerativeModel(inst, {model:nombre, systemInstruction:sistema});
+  ia.modelo = ia.modelo || IA_MODELOS[0];
 }
 async function preguntarIA(texto){
   texto = (texto || '').trim(); if (!texto || ia.ocupado) return;
   ia.hist.push({rol:'yo', t:texto}); ia.ocupado = true; ia.error = ''; pintarIA();
+  const antes = ia.contents.length;
   try {
     await modeloIA();
+    ia.contents.push({role:'user', parts:[{text:texto}]});
+    const sistema = instruccionIA() + '\n\nDATOS DE BELUBANK (JSON, calculados por la app; las cuotas son [fecha límite, capital, interés, interés + (mora), estado, pagó el, ...]):\n' + JSON.stringify(contextoIA());
     let res;
-    for (let intento = 0; ; intento++){
-      try {
-        if (!ia.chat) ia.chat = ia.crear(ia.modelo).startChat();
-        res = await ia.chat.sendMessage(texto); break;
-      } catch (e){
-        // Si el modelo ya no existe, se prueba el siguiente de la lista.
+    for (;;){
+      try { res = await ia.crear(ia.modelo, sistema).generateContent({contents:ia.contents}); break; }
+      catch (e){
+        // Si el modelo ya no existe o se acabó su cuota del día, se prueba el siguiente (cada modelo tiene su propia cuota).
         const sig = IA_MODELOS[IA_MODELOS.indexOf(ia.modelo) + 1];
-        if (/not found|404|not supported/i.test(e.message || '') && sig && intento < IA_MODELOS.length){ ia.modelo = sig; ia.chat = null; continue; }
+        if (/not found|404|no longer available|429|quota|RESOURCE_EXHAUSTED/i.test(e.message || '') && sig){ ia.modelo = sig; continue; }
         throw e;
       }
     }
-    for (let i = 0; i < 6; i++){
-      const calls = res.response.functionCalls?.() || [];
-      if (!calls.length) break;
-      const partes = calls.map(c => { let r; try { r = HERRAMIENTAS[c.name] ? HERRAMIENTAS[c.name].fn(c.args || {}) : {error:'herramienta desconocida'}; } catch (e){ r = {error:String(e.message || e)}; }
-        return {functionResponse:{name:c.name, response:r}}; });
-      res = await ia.chat.sendMessage(partes);
-    }
-    ia.hist.push({rol:'ia', t:res.response.text() || '(sin respuesta)'});
+    const txt = res.response.text() || '(sin respuesta)';
+    ia.contents.push({role:'model', parts:[{text:txt}]});
+    ia.hist.push({rol:'ia', t:txt});
   } catch (e){
-    const m = String(e.message || e);
-    ia.error = /api-not-enabled|not been used|disabled|AI Logic|PERMISSION_DENIED|403/i.test(m)
-      ? 'Falta activar Gemini en Firebase: en la consola de Firebase, AI Logic → Comenzar → Gemini Developer API.'
-      : /quota|429|RESOURCE_EXHAUSTED/i.test(m) ? 'Se acabó el límite gratis de preguntas por ahora. Prueba en unos minutos.'
+    const m = String(e.message || e); console.warn('IA:', m);
+    ia.error = /api-not-enabled/i.test(m) ? 'Falta activar Gemini en Firebase: en la consola de Firebase, AI Logic → Comenzar → Gemini Developer API.'
+      : /quota|429|RESOURCE_EXHAUSTED/i.test(m) ? 'Se acabaron las preguntas gratis de hoy. Mañana se renuevan.'
       : !navigator.onLine ? 'Sin internet: el asistente necesita conexión.' : 'No se pudo responder: ' + m.slice(0, 200);
-    ia.chat = null;
+    ia.contents.length = antes;
   } finally { ia.ocupado = false; pintarIA(); }
 }
 // Texto de Gemini → HTML sencillo (negritas, listas, saltos de línea)
-const mdIA = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^\s*[-*] (.*)$/gm, '• $1').replace(/\n/g, '<br>');
+const mdIA = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^\s*[-*] (.*)$/gm, '• $1').replace(/^-{3,}$/gm, '').replace(/\n/g, '<br>');
 const SUGERENCIAS_IA = ['¿Quién me debe más y desde cuándo?', '¿Cuánto gané este año y cuánto el anterior?', '¿Quién paga esta semana?', '¿Le presto 1000 a Karo?', '¿Qué clientes están empeorando?'];
 function pintarIA(){
   const el = document.getElementById('iaBox'); if (!el) return;
@@ -1646,7 +1671,7 @@ function pintarIA(){
 }
 function enviarIA(){ const i = document.getElementById('iaIn'); const t = i.value; i.value = ''; preguntarIA(t); }
 const cajaIA = () => `<div class="card ia" id="iaBox"><div class="toolbar" style="margin:0 0 8px"><b>Pregúntale a BeluBank</b><span class="hint">con Gemini</span><span style="flex:1"></span>
-    ${ia.hist.length ? '<button class="btn sm" onclick="ia.hist=[];ia.chat=null;ia.error=\'\';pintarIA()">Nueva conversación</button>' : ''}</div>
+    ${ia.hist.length ? '<button class="btn sm" onclick="ia.hist=[];ia.contents=[];ia.error=\'\';pintarIA()">Nueva conversación</button>' : ''}</div>
   <div class="ia-log"></div>
   <div class="ia-sug">${SUGERENCIAS_IA.map(s => `<button class="btn sm" onclick="preguntarIA(this.textContent)">${esc(s)}</button>`).join('')}</div>
   <div class="ia-in"><input id="iaIn" placeholder="Escribe tu pregunta…" onkeydown="if(event.key==='Enter'){event.preventDefault();enviarIA()}"><button class="btn pri" onclick="enviarIA()">Preguntar</button></div>
