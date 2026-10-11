@@ -161,6 +161,10 @@ td .link[title]{text-decoration:underline dotted;text-underline-offset:3px}
 .cli:hover{border-color:var(--brand)}
 .cli:active{transform:scale(.99)}
 .cli-hd{display:flex;gap:12px;align-items:center}
+.mini-bar{display:inline-block;vertical-align:middle;width:70px;height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin-right:6px}.mini-bar i{display:block;height:100%}
+.row.riesgo{cursor:pointer}.row.alerta{border-left:4px solid var(--amber)}.row.alerta.red{border-left-color:var(--red)}.row.alerta.green{border-left-color:var(--brand)}
+h3.sub{font-size:14px;margin:14px 0 6px}h3.sub:first-child{margin-top:0}
+.motivos{margin:0 0 10px;padding-left:18px}.motivos li.pos{color:var(--brand)}.motivos li.neg{color:var(--red)}
 .pago-l{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid var(--line)}
 .redes{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:4px;font-size:13px}.redes a{color:var(--blue);word-break:break-all}.redes span{color:var(--muted)}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px}
@@ -213,7 +217,7 @@ details.card > summary{padding:12px 14px;cursor:pointer;font-weight:600;font-siz
   body{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
   nav{position:fixed;left:0;right:0;bottom:0;margin:0;z-index:30;background:var(--card);border-top:1px solid var(--line);
     display:flex;flex-wrap:nowrap;gap:0;padding:4px 2px calc(4px + env(safe-area-inset-bottom))}
-  nav button{flex:1;padding:12px 0;font-size:12px;min-width:0;border-radius:8px}
+  nav button{flex:1;padding:12px 0;font-size:11px;min-width:0;border-radius:8px;letter-spacing:-.01em}
   #toast{bottom:calc(80px + env(safe-area-inset-bottom));max-width:calc(100vw - 24px)}
   .clientes{grid-template-columns:1fr}
   .cli .stats{grid-template-columns:1fr 1fr}
@@ -239,6 +243,7 @@ details.card > summary{padding:12px 14px;cursor:pointer;font-weight:600;font-siz
     <button data-v="clientes">Clientes</button>
     <button data-v="meses">Meses</button>
     <button data-v="prestamos">Préstamos</button>
+    <button data-v="analisis">Análisis</button>
     <button data-v="nuevo">+Nuevo</button>
     <button data-v="respaldo">Respaldo</button>
   </nav>
@@ -533,7 +538,7 @@ const chipEtq = L => { const e = etiqueta(L); return e.mes ? ` <span class="chip
 
 function render(){
   etqCache = null; pintarAnios();
-  ({inicio:vInicio, clientes:vClientes, meses:vMeses, ganancias:vMeses, prestamos:vPrestamos, nuevo:vNuevo, respaldo:vRespaldo})[vista]();
+  ({inicio:vInicio, clientes:vClientes, meses:vMeses, ganancias:vMeses, prestamos:vPrestamos, analisis:vAnalisis, nuevo:vNuevo, respaldo:vRespaldo})[vista]();
 }
 
 function bannerRespaldo(){
@@ -1305,6 +1310,203 @@ function vMeses(){
     <div class="tblwrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Cuota</th><th class="n">Capital</th><th class="n">Interés</th><th class="n">Total</th></tr></thead><tbody>
     ${pagosMes.map(p => `<tr><td>${fD(p.c.fechaPago)}</td><td>${esc(p.L.cliente)}</td><td>${posicion(p.L, p.c)}${p.c.tipo === 'interes' ? ' <span class="chip blue">solo int.</span>' : ''}</td><td class="n">${num(p.c.capital)}</td><td class="n">${num(p.c.interes)}</td><td class="n"><b>${num(p.c.capital + p.c.interes)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Sin pagos en este mes.</td></tr>'}
     </tbody></table></div></details>`;
+}
+
+/* ================= Análisis ================= */
+/* Todo se calcula con los datos de la app (sin IA ni servidores): rentabilidad, previsión de caja,
+   riesgo de cada cliente con sus motivos, alertas y patrones. */
+let verTodosRiesgo = false, listaRiesgo = [];
+// Días de atraso de una cuota: pagada → hasta el día que pagó; pendiente vencida → hasta hoy.
+const atrasoDe = (c, t = hoy()) => Math.max(0, daysBetween(c.fecha, c.pagado ? (c.fechaPago || c.fecha) : t));
+// Cuotas que sirven para medir cómo paga: normales o de solo interés, ya pagadas o ya vencidas.
+const evaluables = cs => cs.filter(c => (c.tipo === 'normal' || c.tipo === 'interes') && !c.cubierta && (c.pagado || c.fecha < hoy()))
+  .sort((a, b) => a.fecha.localeCompare(b.fecha));
+const prom = xs => xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0;
+const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+const redondear50 = x => Math.max(0, Math.round(x / 50) * 50);
+const tasaDe = L => L.modo === 'pct' ? +L.valor : L.capital ? r2((L.cuotas.filter(c => c.tipo !== 'refi').reduce((s, c) => s + c.interes - (c.mora || 0), 0)) / L.capital * 100) : 0;
+// Rendimiento mensual de un préstamo: interés cobrado / (capital que estuvo prestado × meses).
+// El capital que ya devolvió deja de contar, así que un préstamo en 2 cuotas rinde menos por mes que uno en 1.
+function capitalMeses(L){
+  let saldo = +L.capital || 0, cm = 0;
+  for (const c of L.cuotas.slice().sort((a, b) => a.fecha.localeCompare(b.fecha))){
+    if (c.tipo !== 'normal' && c.tipo !== 'interes') continue;
+    cm += Math.max(0, saldo); saldo -= c.capital;
+  }
+  return cm;
+}
+const cajaA = (cls, l, v, sub, ayuda) => `<div class="stat ${cls}" data-ayuda="${esc(ayuda)}" data-titulo="${esc(l)}">
+  <div class="l">${l} <span class="ico-ayuda" role="button" tabindex="0" title="${esc(ayuda)}" onclick="event.stopPropagation();explicar(this.closest('.stat'))">?</span></div><div class="v">${v}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+const barra = (p, cls = 'brand') => `<div class="mini-bar"><i style="width:${Math.max(0, Math.min(100, p))}%;background:var(--${cls})"></i></div>`;
+const colorPct = p => p >= 85 ? 'brand' : p >= 60 ? 'amber' : 'red';
+
+/* Riesgo de un cliente: parte de su cumplimiento histórico y se ajusta con lo que pasa ahora. */
+function riesgoCliente(ps){
+  const t = hoy(), tol = toleranciaDias(), todasC = ps.flatMap(L => L.cuotas), ev = evaluables(todasC), n = ev.length;
+  const nombre = ps.at(-1).cliente, apodo = ps.map(L => L.apodo).filter(Boolean).at(-1) || '';
+  const ingreso = ps.map(L => L.ingreso).filter(Boolean).at(-1) || 0;
+  const activos = ps.filter(L => !esCongelado(L) && pendientes(L).length), congelados = ps.filter(L => esCongelado(L) && pendientes(L).length);
+  const pend = activos.flatMap(L => pendientes(L));
+  const debe = r2(pend.reduce((s, c) => s + faltaCuota(c), 0)), capCalle = r2(pend.reduce((s, c) => s + capPend(c), 0));
+  const capCong = r2(congelados.flatMap(L => pendientes(L)).reduce((s, c) => s + capPend(c), 0));
+  const ganado = r2(todasC.filter(c => c.pagado && c.tipo !== 'refi').reduce((s, c) => s + c.interes, 0));
+  const capRiesgo = r2(ps.flatMap(L => pendientes(L)).reduce((s, c) => s + capPend(c), 0));
+  const cumpl = cumplimiento(todasC), sem = semaforo(todasC);
+  const ult = ev.slice(-3).map(c => atrasoDe(c, t)), ant = ev.slice(-6, -3).map(c => atrasoDe(c, t));
+  const prom6 = Math.round(prom(ev.slice(-6).map(c => atrasoDe(c, t))));
+  const cambio = ult.length && ant.length ? Math.round(prom(ult) - prom(ant)) : 0;
+  const atrasoHoy = pend.filter(c => c.fecha < t).reduce((m, c) => Math.max(m, daysBetween(c.fecha, t)), 0);
+  const cuotaAct = activos.length ? Math.max(...activos.map(cuotaTipica)) : Math.max(0, ...ps.map(cuotaTipica));
+  const pctIng = ingreso ? Math.round(cuotaAct / ingreso * 100) : null;
+  const nInt = ev.filter(c => c.tipo === 'interes').length, nParc = todasC.filter(c => pagosDe(c).length).length;
+  const desde = ps.map(L => L.cuotas[0]?.fecha || L.creado).sort()[0];
+  const meses = Math.max(0, Math.round(daysBetween(desde, t) / 30));
+  // Puntaje (0 a 100, más alto = más confiable)
+  const base = 70;   // cliente sin historia: confianza media
+  let score = cumpl === null ? base : (cumpl * Math.min(n, 3) + base * Math.max(0, 3 - n)) / 3;
+  const motivos = [];
+  if (cumpl === null) motivos.push({t:'Todavía no tiene cuotas vencidas para medir cómo paga', s:0});
+  else motivos.push({t:`Cumplimiento histórico ${cumpl}% (${resumenSem(sem)})`, s:cumpl >= 85 ? 1 : cumpl >= 60 ? 0 : -1});
+  if (n && n < 3) motivos.push({t:`Poca historia (${n} cuota${n > 1 ? 's' : ''}): el puntaje es aproximado`, s:0});
+  if (atrasoHoy > tol){ score -= Math.min(30, atrasoHoy / 2); motivos.push({t:`Hoy tiene una cuota atrasada ${atrasoHoy} días`, s:-1}); }
+  if (cambio >= 7){ score -= 10; motivos.push({t:`Está empeorando: sus últimas cuotas llegan ${cambio} días más tarde que antes`, s:-1}); }
+  else if (cambio <= -7){ score += 5; motivos.push({t:`Está mejorando: sus últimas cuotas llegan ${-cambio} días antes que antes`, s:1}); }
+  if (pctIng !== null){
+    if (pctIng > 40){ score -= 10; motivos.push({t:`La cuota es el ${pctIng}% de lo que gana al mes (alto)`, s:-1}); }
+    else if (pctIng > 25){ score -= 5; motivos.push({t:`La cuota es el ${pctIng}% de lo que gana al mes`, s:0}); }
+    else motivos.push({t:`La cuota es solo el ${pctIng}% de lo que gana al mes`, s:1});
+  }
+  if (capCong){ score -= 30; motivos.push({t:`Tiene ${money(capCong)} de capital congelado (no pagó por mucho tiempo)`, s:-1}); }
+  if (n >= 3 && prom6 <= tol) motivos.push({t:`En sus últimas cuotas pagó en promedio ${prom6 ? `${prom6} día${prom6 > 1 ? 's' : ''} después` : 'a tiempo'}`, s:1});
+  else if (n >= 3 && prom6 > tol) motivos.push({t:`En sus últimas cuotas pagó en promedio ${prom6} días tarde`, s:-1});
+  if (nInt) motivos.push({t:`${nInt} vez${nInt > 1 ? 'es' : ''} pagó solo el interés`, s:0});
+  if (nParc) motivos.push({t:`${nParc} cuota${nParc > 1 ? 's' : ''} pagada${nParc > 1 ? 's' : ''} por partes`, s:0});
+  if (meses >= 12) motivos.push({t:`Cliente hace ${Math.floor(meses / 12)} año${meses >= 24 ? 's' : ''}`, s:1});
+  score = Math.round(Math.max(0, Math.min(100, score)));
+  const nv = score >= 75 ? {t:'Riesgo bajo', cls:'green'} : score >= 50 ? {t:'Riesgo medio', cls:'amber'} : {t:'Riesgo alto', cls:'red'};
+  // Límite sugerido para un préstamo nuevo
+  const colch = r2(ganado - capRiesgo);
+  const pagados = ps.filter(L => !pendientes(L).length && !L.refinanciadoEn);
+  const mayorPagado = Math.max(0, ...pagados.map(L => +L.capital || 0));
+  let limite, porQue, espera = false;
+  if (score < 50 || atrasoHoy > 30 || capCong){ limite = 0; porQue = 'No prestarle más hasta que se ponga al día.'; }
+  else if (!mayorPagado && colch <= 0){ limite = 0; espera = true; porQue = 'Todavía no terminó de pagar ningún préstamo: mejor esperar a que termine el actual.'; }
+  else if (score < 75){ limite = redondear50(Math.max(colch, mayorPagado * 0.5)); porQue = colch >= mayorPagado * 0.5 ? 'Hasta lo que ya ganaste con esta persona (no arriesgas tu capital).' : 'La mitad de su préstamo más grande ya pagado.'; }
+  else { limite = redondear50(Math.max(colch, mayorPagado * (score >= 90 ? 1.2 : 1))); porQue = colch >= mayorPagado ? 'Hasta lo que ya ganaste con esta persona (no arriesgas tu capital).' : score >= 90 ? 'Hasta 20% más que su préstamo más grande ya pagado.' : 'Hasta su préstamo más grande ya pagado.'; }
+  return {k:claveCliente(nombre), nombre, apodo, score, nv, motivos, limite, porQue, espera, debe, capCalle, capCong, pctIng, cambio, atrasoHoy, cumpl, ps, colch, mayorPagado,
+    pPago:cumpl === null ? 0.8 : Math.max(0.1, Math.min(0.98, score / 100))};
+}
+function riesgos(){
+  const g = new Map();
+  for (const L of S.prestamos){ const k = claveCliente(L.cliente); if (!g.has(k)) g.set(k, []); g.get(k).push(L); }
+  return [...g.values()].map(ps => riesgoCliente(ps.slice().sort(porCreacion)));
+}
+function verRiesgo(i){
+  const r = listaRiesgo[i]; if (!r) return;
+  dialogo(`${r.nombre} · ${r.nv.t} (${r.score}/100)`, `<div style="padding:16px;line-height:1.55">
+    <ul class="motivos">${r.motivos.map(m => `<li class="${m.s > 0 ? 'pos' : m.s < 0 ? 'neg' : ''}">${esc(m.t)}</li>`).join('')}</ul>
+    <p><b>Préstamo nuevo sugerido:</b> ${r.limite ? `hasta ${money(r.limite)}` : r.espera ? 'esperar' : 'no prestar'}. ${esc(r.porQue)}</p>
+    <p class="hint">El puntaje empieza en su cumplimiento histórico (cuotas a tiempo, en tolerancia, solo interés, tarde o sin pagar) y baja si hoy tiene atraso, si está empeorando, si la cuota es mucho de lo que gana o si tiene deuda congelada. Es una guía: tú conoces a la persona.</p></div>`, () => {}, 'Entendido');
+}
+function vAnalisis(){
+  const t = hoy(), mesAct = t.slice(0, 7), tol = toleranciaDias();
+  const R = riesgos(), porK = new Map(R.map(r => [r.k, r]));
+  const rDe = L => porK.get(claveCliente(L.cliente));
+
+  // ---- 1. Rentabilidad (año en foco) ----
+  const ps = S.prestamos.filter(prestamoEnAnio);
+  const prestado = r2(ps.reduce((s, L) => s + (+L.capital || 0), 0));
+  const cuotasAnio = S.prestamos.flatMap(L => L.cuotas).filter(c => enAnio(c.fecha) && c.pagado && c.tipo !== 'refi');
+  const interes = r2(cuotasAnio.reduce((s, c) => s + c.interes, 0)), mora = r2(cuotasAnio.reduce((s, c) => s + (c.mora || 0), 0));
+  const perdido = r2(ps.filter(L => esCongelado(L)).flatMap(L => pendientes(L)).reduce((s, c) => s + capPend(c), 0));
+  const neta = r2(interes - perdido);
+  const terminados = ps.filter(L => !pendientes(L).length && !L.refinanciadoEn);
+  const cm = terminados.reduce((s, L) => s + capitalMeses(L), 0), intTerm = terminados.reduce((s, L) => s + L.cuotas.filter(c => c.pagado && c.tipo !== 'refi').reduce((a, c) => a + c.interes, 0), 0);
+  const rend = cm ? r2(intTerm / cm * 100) : null;
+  const rendNeto = cm ? r2((intTerm - perdido) / cm * 100) : null;
+  const deTodos = anioFoco === 'todos' ? 'desde el inicio' : `en ${anioFoco}`;
+  const rent = `<div class="stats">
+    ${cajaA('blue', 'Prestado', money(prestado), `${ps.length} préstamo${ps.length !== 1 ? 's' : ''}`, `La suma de los préstamos que diste ${deTodos} (por la fecha de su primera cuota).`)}
+    ${cajaA('green', 'Interés cobrado', money(interes), mora ? `incluye ${money(mora)} de mora / interés +` : 'ganancia bruta', `El interés de las cuotas ya pagadas ${deTodos} (por su fecha límite), incluida la mora y el interés + que te pagaron.`)}
+    ${cajaA(perdido ? 'red' : 'gray', 'Capital perdido', money(perdido), perdido ? 'deudas congeladas' : 'nada congelado', `El capital de los préstamos ${deTodos} que están congelados (no pagan hace mucho). Si algún día pagan, deja de ser pérdida.`)}
+    ${cajaA(neta >= 0 ? 'green' : 'red', 'Ganancia neta', money(neta), 'interés − capital perdido', `Lo que de verdad ganaste ${deTodos}: interés cobrado (${money(interes)}) menos el capital perdido (${money(perdido)}).`)}
+    ${cajaA('violet', 'Rinde al mes', rend === null ? '—' : `${num(rend)}%`, rendNeto === null ? 'aún sin préstamos terminados' : `neto ${num(rendNeto)}% descontando lo perdido`,
+      `Cuánto rinde tu dinero por mes en los préstamos ya terminados ${deTodos}: interés cobrado ÷ (capital prestado × meses que estuvo afuera). El capital que te devuelven en cada cuota deja de contar. Ej.: 1000 en 2 cuotas de 500 con 210 de interés → 210 ÷ (1000 + 500) = 14% al mes.`)}
+  </div>`;
+
+  // ---- 2. Previsión de caja ----
+  const pend = S.prestamos.filter(L => !esCongelado(L)).flatMap(L => pendientes(L).map(c => ({L, c, p:rDe(L)?.pPago ?? 0.8})));
+  const fila = (titulo, xs, nota) => {
+    const prog = r2(xs.reduce((s, x) => s + faltaCuota(x.c), 0)), prob = r2(xs.reduce((s, x) => s + faltaCuota(x.c) * x.p, 0));
+    const intProb = r2(xs.reduce((s, x) => s + intPend(x.c) * x.p, 0));
+    return `<tr><td><b>${titulo}</b>${nota ? `<div class="hint">${nota}</div>` : ''}</td><td class="n">${num(prog)}</td><td class="n"><b>${num(prob)}</b></td><td class="n">${prog - prob > 0.5 ? `<span style="color:var(--red)">${num(r2(prog - prob))}</span>` : '—'}</td><td class="n">${num(intProb)}</td><td class="hint">${xs.length} cuota${xs.length !== 1 ? 's' : ''}</td></tr>`;
+  };
+  const venc = pend.filter(x => x.c.fecha < t);
+  const mesesPrev = [0, 1, 2].map(i => addMonths(mesAct + '-01', i).slice(0, 7));
+  const caja = `<div class="card"><div class="tblwrap"><table><thead><tr><th>Mes</th><th class="n">Programado</th><th class="n">Probable</th><th class="n">En riesgo</th><th class="n">Ganancia probable</th><th></th></tr></thead><tbody>
+    ${venc.length ? fila('Ya vencido', venc, 'cuotas atrasadas sin pagar') : ''}
+    ${mesesPrev.map(m => fila(nombreMes(m), pend.filter(x => x.c.fecha >= t && x.c.fecha.slice(0, 7) === m))).join('')}
+  </tbody></table></div>
+  <p class="hint" style="margin:10px 0 0">Programado = lo que vence (sin mora). Probable = lo programado × la probabilidad de que pague cada cliente según su historial y su riesgo de hoy. Las deudas congeladas no se cuentan.</p></div>`;
+
+  // ---- 3. Riesgo por cliente ----
+  const conDeuda = R.filter(r => r.debe > 0 || r.capCong > 0);
+  const listaR = listaRiesgo = (verTodosRiesgo ? R : conDeuda).slice().sort((a, b) => a.score - b.score || b.debe - a.debe);
+  const riesgo = `<div class="card list">${listaR.map((r, i) => `<div class="row riesgo" onclick="verRiesgo(${i})">${avatar(r.nombre)}
+      <div class="who"><b>${esc(r.nombre)}</b>${r.apodo ? ` <span class="hint">“${esc(r.apodo)}”</span>` : ''} <span class="chip ${r.nv.cls}">${r.nv.t} · ${r.score}</span>
+        <div class="meta">${esc((r.motivos.find(m => m.s < 0) || r.motivos.find(m => m.s > 0) || r.motivos[0]).t)}</div></div>
+      <div class="amt">${r.debe ? `<b>${money(r.debe)}</b><div class="meta">debe</div>` : r.capCong ? `<b>${money(r.capCong)}</b><div class="meta">congelado</div>` : '<span class="hint">sin deuda</span>'}</div>
+      <div class="amt"><b>${r.limite ? money(r.limite) : r.espera ? 'Esperar' : 'No prestar'}</b><div class="meta">préstamo sugerido</div></div></div>`).join('') || '<div class="empty">Nadie tiene deuda ahora.</div>'}</div>
+    <div class="toolbar" style="margin-top:6px"><button class="btn sm" onclick="verTodosRiesgo=!verTodosRiesgo;render()">${verTodosRiesgo ? 'Ver solo los que deben' : `Ver todos los clientes (${R.length})`}</button><span class="hint">Toca un cliente para ver por qué.</span></div>`;
+
+  // ---- 4. Alertas ----
+  const alertas = [];
+  for (const r of R.filter(r => r.debe && r.cambio >= 7)) alertas.push({cls:'amber', t:`<b>${esc(r.nombre)}</b> está pagando cada vez más tarde (+${r.cambio} días en sus últimas cuotas).`});
+  for (const L of S.prestamos.filter(L => !esCongelado(L) && pendientes(L).length && diasCongelar())){
+    const p = pendientes(L)[0], d = daysBetween(p.fecha, t);
+    if (d >= 30 && d <= diasCongelar()){
+      const ultP = [...L.cuotas.filter(c => c.pagado && c.fechaPago).map(c => c.fechaPago), ...L.cuotas.flatMap(c => pagosDe(c).map(x => x.f))].sort().at(-1);
+      const sinPago = ultP ? daysBetween(ultP, t) : d;
+      if (sinPago >= 30) alertas.push({cls:'red', t:`<b>${esc(L.cliente)}</b> no paga hace ${sinPago} días${!L.descongelado ? ` (se congela sola a los ${diasCongelar()})` : ''}: debe ${money(pendientes(L).reduce((s, c) => s + faltaCuota(c), 0))}.`});
+    }
+  }
+  for (const r of R.filter(r => r.debe && r.pctIng > 40)) alertas.push({cls:'amber', t:`A <b>${esc(r.nombre)}</b> la cuota le come el ${r.pctIng}% de lo que gana al mes.`});
+  const calle = r2(R.reduce((s, r) => s + r.capCalle, 0)), top = R.filter(r => r.capCalle).sort((a, b) => b.capCalle - a.capCalle);
+  if (calle && top.length >= 3){
+    const top2 = r2(top[0].capCalle + top[1].capCalle);
+    if (top2 / calle > 0.5) alertas.push({cls:'amber', t:`El ${pct(top2, calle)}% de tu capital en la calle (${money(top2)} de ${money(calle)}) está con solo 2 personas: <b>${esc(top[0].nombre)}</b> y <b>${esc(top[1].nombre)}</b>. Si una falla, te afecta mucho.`});
+  } else if (calle && top.length && top[0].capCalle / calle > 0.5) alertas.push({cls:'amber', t:`El ${pct(top[0].capCalle, calle)}% de tu capital en la calle está con <b>${esc(top[0].nombre)}</b>.`});
+  for (const r of R.filter(r => r.debe && r.cambio <= -7 && r.score >= 75)) alertas.push({cls:'green', t:`<b>${esc(r.nombre)}</b> está pagando mejor que antes.`});
+  const alertasH = `<div class="card list">${alertas.map(a => `<div class="row alerta ${a.cls}"><div class="who">${a.t}</div></div>`).join('') || '<div class="empty">Sin alertas: todo en orden.</div>'}</div>`;
+
+  // ---- 5. Patrones (toda la historia) ----
+  const todasEv = S.prestamos.flatMap(L => evaluables(L.cuotas).map(c => ({L, c})));
+  const aTiempo = xs => { const r = semaforo(xs.map(x => x.c)); return r.n ? {p:r.pct, n:r.n, ok:pct(r.ok + r.tol, r.n)} : null; };
+  const filaPat = (titulo, xs, extra = '') => { const a = aTiempo(xs); if (!a) return '';
+    return `<tr><td>${titulo}</td><td class="n">${a.n}</td><td class="n">${a.ok}%</td><td style="min-width:110px">${barra(a.p, colorPct(a.p))}<span class="hint">${a.p}%</span></td>${extra}</tr>`; };
+  const cabPat = (c1, extra = '') => `<thead><tr><th>${c1}</th><th class="n">Cuotas</th><th class="n">A tiempo</th><th>Cumplimiento</th>${extra}</tr></thead>`;
+  const porMes = MESL.map((m, i) => ({m, xs:todasEv.filter(x => +x.c.fecha.slice(5, 7) === i + 1)})).filter(x => x.xs.length >= 3);
+  const peorMes = porMes.map(x => ({m:x.m, a:aTiempo(x.xs)})).sort((a, b) => a.a.p - b.a.p)[0];
+  const tramosT = [['Hasta 15%', 0, 15], ['16% a 20%', 15.01, 20], ['21% a 25%', 20.01, 25], ['Más de 25%', 25.01, 1e9]];
+  const tramosM = [['Hasta S/ 300', 0, 300], ['S/ 301 a 1,000', 300.01, 1000], ['Más de S/ 1,000', 1000.01, 1e12]];
+  const ganDe = xs => money(r2(xs.filter(x => x.c.pagado).reduce((s, x) => s + x.c.interes, 0)));
+  const primeros = new Set(); { const vistos = new Set(); for (const L of S.prestamos.slice().sort((a, b) => (a.cuotas[0]?.fecha || '').localeCompare(b.cuotas[0]?.fecha || ''))){ const k = claveCliente(L.cliente); if (!vistos.has(k)){ vistos.add(k); primeros.add(L); } } }
+  const patrones = todasEv.length < 5 ? '<div class="card empty">Todavía hay pocas cuotas para ver patrones.</div>' : `
+    <div class="card"><h3 class="sub">Por tasa de interés</h3><div class="tblwrap"><table>${cabPat('Tasa', '<th class="n">Interés ganado</th>')}<tbody>
+      ${tramosT.map(([n, a, b]) => { const xs = todasEv.filter(x => { const v = tasaDe(x.L); return v >= a && v <= b; }); return filaPat(n, xs, `<td class="n">${ganDe(xs)}</td>`); }).join('')}</tbody></table></div>
+      <h3 class="sub">Por monto del préstamo</h3><div class="tblwrap"><table>${cabPat('Monto', '<th class="n">Interés ganado</th>')}<tbody>
+      ${tramosM.map(([n, a, b]) => { const xs = todasEv.filter(x => x.L.capital >= a && x.L.capital <= b); return filaPat(n, xs, `<td class="n">${ganDe(xs)}</td>`); }).join('')}</tbody></table></div>
+      <h3 class="sub">Clientes nuevos vs. que repiten</h3><div class="tblwrap"><table>${cabPat('Préstamo')}<tbody>
+      ${filaPat('Primer préstamo del cliente', todasEv.filter(x => primeros.has(x.L)))}${filaPat('Clientes que repiten', todasEv.filter(x => !primeros.has(x.L)))}</tbody></table></div>
+      <h3 class="sub">Por mes del año${peorMes ? ` <small>· el mes más difícil: ${peorMes.m}</small>` : ''}</h3><div class="tblwrap"><table>${cabPat('Mes')}<tbody>
+      ${porMes.map(x => filaPat(x.m[0].toUpperCase() + x.m.slice(1), x.xs)).join('')}</tbody></table></div>
+      <p class="hint" style="margin:10px 0 0">Con toda la historia (todos los años). "A tiempo" = pagó completo hasta ${tol} días después de la fecha límite. Cumplimiento = el mismo puntaje del semáforo. Con pocas cuotas en un grupo, el resultado puede cambiar mucho.</p></div>`;
+
+  app.innerHTML = `<h2>Rentabilidad <small>· ${anioFoco === 'todos' ? 'todos los años' : anioFoco + ' (cambia el año arriba)'}</small></h2>${rent}
+    <h2>Lo que va a entrar <small>· próximos 3 meses</small></h2>${caja}
+    <h2>Alertas</h2>${alertasH}
+    <h2>Riesgo por cliente <small>· de más riesgo a menos</small></h2>${riesgo}
+    <h2>Patrones <small>· qué funciona mejor</small></h2>${patrones}`;
 }
 
 /* ---------- Respaldo ---------- */
