@@ -1347,6 +1347,16 @@ const redondear50 = x => Math.max(0, Math.round(x / 50) * 50);
 const tasaDe = L => L.modo === 'pct' ? +L.valor : L.capital ? r2((L.cuotas.filter(c => c.tipo !== 'refi').reduce((s, c) => s + c.interes - (c.mora || 0), 0)) / L.capital * 100) : 0;
 // Rendimiento mensual de un préstamo: interés cobrado / (capital que estuvo prestado × meses).
 // El capital que ya devolvió deja de contar, así que un préstamo en 2 cuotas rinde menos por mes que uno en 1.
+// De dónde sale lo prestado: lo que ya volvió + lo que está en la calle + lo congelado + lo que pasó a un refinanciamiento.
+function conciliacion(ps){
+  const cs = ps.flatMap(L => L.cuotas);
+  const r = {prestado:r2(ps.reduce((s, L) => s + (+L.capital || 0), 0)), devuelto:r2(cs.filter(c => c.pagado && c.tipo !== 'refi').reduce((s, c) => s + c.capital, 0)),
+    parcial:r2(cs.filter(c => !c.pagado).reduce((s, c) => s + pagosDe(c).reduce((a, p) => a + (p.cap || 0), 0), 0)),
+    calle:r2(ps.flatMap(pendAct).reduce((s, c) => s + capPend(c), 0)), congelado:r2(ps.flatMap(pendCong).reduce((s, c) => s + capPend(c), 0)),
+    refi:r2(cs.filter(c => c.tipo === 'refi').reduce((s, c) => s + (c.movido || 0), 0))};
+  r.ajuste = r2(r.prestado - r.devuelto - r.parcial - r.calle - r.congelado - r.refi);
+  return r;
+}
 function capitalMeses(L){
   let saldo = +L.capital || 0, cm = 0;
   for (const c of L.cuotas.slice().sort((a, b) => a.fecha.localeCompare(b.fecha))){
@@ -1444,21 +1454,24 @@ function vAnalisis(){
     const gan = r2(r.ps.flatMap(L => L.cuotas).filter(c => c.pagado && c.tipo !== 'refi').reduce((s, c) => s + c.interes, 0));
     return {n:r.nombre, cap, gan, real:r2(Math.max(0, cap - gan))}; }).filter(Boolean).sort((a, b) => b.cap - a.cap);
   const perdReal = r2(perdidas.reduce((s, x) => s + x.real, 0));
-  const neta = r2(interes - perdido);
+  const neta = r2(interes - perdReal), conc = conciliacion(ps);
   const terminados = ps.filter(L => !pendientes(L).length && !L.refinanciadoEn);
   const cm = terminados.reduce((s, L) => s + capitalMeses(L), 0), intTerm = terminados.reduce((s, L) => s + L.cuotas.filter(c => c.pagado && c.tipo !== 'refi').reduce((a, c) => a + c.interes, 0), 0);
   const rend = cm ? r2(intTerm / cm * 100) : null;
-  const rendNeto = cm ? r2((intTerm - perdido) / cm * 100) : null;
+  const rendNeto = cm ? r2((intTerm - perdReal) / cm * 100) : null;
   const deTodos = anioFoco === 'todos' ? 'desde el inicio' : `en ${anioFoco}`;
   const rent = `<div class="stats">
-    ${cajaA('blue', 'Prestado', money(prestado), `${ps.length} préstamo${ps.length !== 1 ? 's' : ''}`, `La suma de los préstamos que diste ${deTodos} (por la fecha de su primera cuota).`)}
+    ${cajaA('blue', 'Prestado', money(prestado), `${ps.length} préstamo${ps.length !== 1 ? 's' : ''}`, `La suma de los préstamos que diste ${deTodos} (por la fecha de su primera cuota). Así se reparte: `
+      + `${money(conc.devuelto)} ya te devolvieron` + (conc.parcial ? ` + ${money(conc.parcial)} pagado a cuenta` : '') + ` + ${money(conc.calle)} está en la calle (por cobrar) + ${money(conc.congelado)} congelado`
+      + (conc.refi ? ` + ${money(conc.refi)} pasó a refinanciamientos (ese capital ya está dentro de otro préstamo)` : '') + (Math.abs(conc.ajuste) >= 1 ? ` ${conc.ajuste > 0 ? '+' : '−'} ${money(Math.abs(conc.ajuste))} de redondeos o ajustes` : '')
+      + ` = ${money(prestado)}. Por eso Recaudado − Ganancia (lo que ya volvió) no es igual a lo prestado: falta lo que todavía está afuera.`)}
     ${cajaA('green', 'Interés cobrado', money(interes), mora ? `incluye ${money(mora)} de mora / interés +` : 'ganancia bruta', `El interés de las cuotas ya pagadas ${deTodos} (por su fecha límite), incluida la mora y el interés + que te pagaron.`)}
     ${cajaA(perdido ? 'amber' : 'gray', 'Pérdida nominal', money(perdido), perdido ? perdidas.map(x => `${esc(x.n)} ${num(x.cap)}`).join(' · ') : 'nada congelado',
       `El capital congelado ${deTodos}: lo que te deben y ya no pagan (no incluye intereses). ${perdidas.map(x => `${x.n}: ${money(x.cap)}`).join(' · ')}. Si algún día pagan, deja de ser pérdida.`)}
     ${cajaA(perdReal ? 'red' : 'gray', 'Pérdida real', money(perdReal), perdido ? perdidas.map(x => `${esc(x.n)} ${num(x.real)}`).join(' · ') : 'nada congelado',
       `Lo que de verdad salió de tu bolsillo: a cada cliente con deuda congelada se le resta todo el interés que ya te pagó desde el inicio. `
       + perdidas.map(x => `${x.n}: ${money(x.cap)} − ${money(x.gan)} de interés = ${x.real ? money(x.real) : `S/ 0 (quedas ${money(r2(x.gan - x.cap))} a favor)`}`).join(' · ') + '.')}
-    ${cajaA(neta >= 0 ? 'green' : 'red', 'Ganancia neta', money(neta), 'interés − pérdida nominal', `Lo que te queda ${deTodos}: todo el interés cobrado (${money(interes)}) menos el capital congelado (${money(perdido)}). Aquí no se resta dos veces: la pérdida real ya descuenta el interés de esos mismos clientes.`)}
+    ${cajaA(neta >= 0 ? 'green' : 'red', 'Ganancia neta', money(neta), 'interés − pérdida real', `Interés cobrado ${deTodos} (${money(interes)}) menos la pérdida real (${money(perdReal)}), o sea lo que de verdad salió de tu bolsillo con las deudas congeladas. (Si restaras todo el capital congelado, la pérdida nominal de ${money(perdido)}, quedaría ${money(r2(interes - perdido))}.)`)}
     ${cajaA('violet', 'Rinde al mes', rend === null ? '—' : `${num(rend)}%`, rendNeto === null ? 'aún sin préstamos terminados' : `neto ${num(rendNeto)}% descontando lo perdido`,
       `Cuánto rinde tu dinero por mes en los préstamos ya terminados ${deTodos}: interés cobrado ÷ (capital prestado × meses que estuvo afuera). El capital que te devuelven en cada cuota deja de contar. Ej.: 1000 en 2 cuotas de 500 con 210 de interés → 210 ÷ (1000 + 500) = 14% al mes.`)}
   </div>`;
@@ -1545,7 +1558,8 @@ function vAnalisis(){
    montos y fechas; nunca teléfonos, redes ni notas. */
 // En orden de preferencia; si a uno se le acaba la cuota gratis del día, se usa el siguiente.
 const IA_MODELOS = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-flash-lite-latest'];
-const ia = {contents:[], modelo:null, hist:[], ocupado:false, error:''};
+const ia = {contents:[], modelo:null, hist:[], ocupado:false, error:'', desde:0};
+const IA_ESPERA = 75;   // segundos; si un modelo no responde, se prueba el siguiente
 const r2s = x => r2(x || 0);
 function cuotaIA(L, c){
   const e = c.tipo === 'refi' ? 'refinanciada' : c.tipo === 'abono' ? 'abono' : c.pagado ? (estadoCumpl(c)?.k === 'tarde' ? `pagada tarde (${atrasoDe(c)} días)` : 'pagada')
@@ -1574,7 +1588,7 @@ const HERRAMIENTAS = {
       const intT = term.reduce((s, L) => s + L.cuotas.filter(c => c.pagado && c.tipo !== 'refi').reduce((a, c) => a + c.interes, 0), 0);
       const act = S.prestamos.flatMap(pendAct);
       return {periodo:anio || 'todos los años', prestamos:ps.length, prestado:r2s(ps.reduce((s, L) => s + (+L.capital || 0), 0)), interes_cobrado:int,
-        de_eso_mora_o_interes_adicional:r2s(pag.reduce((s, c) => s + (c.mora || 0), 0)), perdida_nominal_capital_congelado:perd, perdida_real_de_bolsillo:r2s(porCli.reduce((s, x) => s + x.perdida_real, 0)), perdidas_por_cliente:porCli, ganancia_neta_interes_menos_perdida_nominal:r2s(int - perd),
+        de_eso_mora_o_interes_adicional:r2s(pag.reduce((s, c) => s + (c.mora || 0), 0)), perdida_nominal_capital_congelado:perd, perdida_real_de_bolsillo:r2s(porCli.reduce((s, x) => s + x.perdida_real, 0)), perdidas_por_cliente:porCli, ganancia_neta_interes_menos_perdida_real:r2s(int - porCli.reduce((s, x) => s + x.perdida_real, 0)), ganancia_si_restas_perdida_nominal:r2s(int - perd), recaudado_capital_mas_interes:r2s(pag.reduce((s, c) => s + c.capital + c.interes, 0)), de_donde_sale_lo_prestado:(k => ({ya_devuelto:k.devuelto, pagado_a_cuenta:k.parcial, en_la_calle_por_cobrar:k.calle, congelado:k.congelado, paso_a_refinanciamientos:k.refi, redondeos_o_ajustes:k.ajuste}))(conciliacion(ps)),
         rinde_al_mes_pct:cm ? r2s(intT / cm * 100) : null, hoy:{capital_en_la_calle:r2s(act.reduce((s, c) => s + capPend(c), 0)), interes_por_cobrar:r2s(act.reduce((s, c) => s + intPend(c), 0)),
         deuda_total:r2s(act.reduce((s, c) => s + faltaCuota(c), 0)), cuotas_atrasadas:act.filter(c => c.fecha < hoy()).length}};
     })},
@@ -1627,6 +1641,7 @@ const instruccionIA = () => `Eres el asistente de BeluBank, la app de préstamos
 Responde en español, corto y claro, como a una amiga que presta dinero. Usa listas cortas cuando ayuden.
 REGLAS: Todos los números tienen que salir de los DATOS de abajo; nunca inventes datos ni nombres. Usa los totales que ya vienen calculados en vez de sumar tú; si tienes que sumar, hazlo con cuidado y muestra la suma. Si no tienes el dato, dilo.
 Cómo funciona el negocio: cada préstamo se paga en cuotas (capital + interés) con una fecha límite; las cuentas se hacen por fecha límite. Mora: S/ ${moraDia()} por día de atraso (se puede exonerar); "interés adicional" = mora o extra cobrado. Tolerancia: ${toleranciaDias()} días. "Solo interés": pagó solo el interés y la deuda se corrió un mes. Deuda congelada: no paga hace más de ${diasCongelar()} días (o se congeló a mano, puede ser solo una cuota); no suma mora. Pérdida nominal = capital congelado. Pérdida real = capital congelado de cada cliente − todo el interés que ese cliente ya pagó (mínimo 0); es lo que de verdad salió del bolsillo. "Sin riesgo hasta" = interés que ya pagó el cliente − capital que aún debe. Riesgo: puntaje 0-100 (75+ bajo, 50-74 medio, menos de 50 alto).
+Recaudado = capital que ya volvió + interés cobrado. Prestado = ya devuelto + en la calle + congelado + lo que pasó a refinanciamientos (ver de_donde_sale_lo_prestado). Ganancia neta = interés − pérdida real.
 Las fechas muéstralas como dd/mm/aaaa. Si te piden un consejo (prestar o no), da tu opinión con los datos y recuerda que ella conoce a la persona.`;
 /* Todos los datos ya calculados por la app, en un solo bloque: así cada pregunta es UNA sola llamada
    a Gemini (la cuota gratis cuenta llamadas, no preguntas). Cuotas: [fecha límite, capital, interés, interés +, estado, pagó el]. */
@@ -1659,7 +1674,8 @@ async function modeloIA(){
 }
 async function preguntarIA(texto){
   texto = (texto || '').trim(); if (!texto || ia.ocupado) return;
-  ia.hist.push({rol:'yo', t:texto}); ia.ocupado = true; ia.error = ''; pintarIA();
+  ia.hist.push({rol:'yo', t:texto}); ia.ocupado = true; ia.error = ''; ia.desde = Date.now(); pintarIA();
+  const reloj = setInterval(() => { if (ia.ocupado) pintarIA(); }, 1000);
   const antes = ia.contents.length;
   try {
     await modeloIA();
@@ -1667,11 +1683,15 @@ async function preguntarIA(texto){
     const sistema = instruccionIA() + '\n\nDATOS DE BELUBANK (JSON, calculados por la app; las cuotas son [fecha límite, capital, interés, interés + (mora), estado, pagó el, ...]):\n' + JSON.stringify(contextoIA());
     let res;
     for (;;){
-      try { res = await ia.crear(ia.modelo, sistema).generateContent({contents:ia.contents}); break; }
+      try {
+        res = await Promise.race([ia.crear(ia.modelo, sistema).generateContent({contents:ia.contents}),
+          new Promise((_, no) => setTimeout(() => no(new Error('timeout: el modelo tardó demasiado')), IA_ESPERA * 1000))]);
+        break;
+      }
       catch (e){
         // Si el modelo ya no existe o se acabó su cuota del día, se prueba el siguiente (cada modelo tiene su propia cuota).
         const sig = IA_MODELOS[IA_MODELOS.indexOf(ia.modelo) + 1];
-        if (/not found|404|no longer available|429|quota|RESOURCE_EXHAUSTED/i.test(e.message || '') && sig){ ia.modelo = sig; continue; }
+        if (/not found|404|no longer available|429|quota|RESOURCE_EXHAUSTED|timeout|503|overloaded|UNAVAILABLE/i.test(e.message || '') && sig){ ia.modelo = sig; continue; }
         throw e;
       }
     }
@@ -1682,9 +1702,10 @@ async function preguntarIA(texto){
     const m = String(e.message || e); console.warn('IA:', m);
     ia.error = /api-not-enabled/i.test(m) ? 'Falta activar Gemini en Firebase: en la consola de Firebase, AI Logic → Comenzar → Gemini Developer API.'
       : /quota|429|RESOURCE_EXHAUSTED/i.test(m) ? 'Se acabaron las preguntas gratis de hoy. Mañana se renuevan.'
+      : /timeout/i.test(m) ? 'Gemini está tardando demasiado ahora. Prueba otra vez en un rato.'
       : !navigator.onLine ? 'Sin internet: el asistente necesita conexión.' : 'No se pudo responder: ' + m.slice(0, 200);
     ia.contents.length = antes;
-  } finally { ia.ocupado = false; pintarIA(); }
+  } finally { clearInterval(reloj); ia.ocupado = false; pintarIA(); }
 }
 // Texto de Gemini → HTML sencillo (negritas, listas, saltos de línea)
 const mdIA = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^\s*[-*] (.*)$/gm, '• $1').replace(/^-{3,}$/gm, '').replace(/\n/g, '<br>');
@@ -1692,7 +1713,7 @@ const SUGERENCIAS_IA = ['¿Quién me debe más y desde cuándo?', '¿Cuánto gan
 function pintarIA(){
   const el = document.getElementById('iaBox'); if (!el) return;
   el.querySelector('.ia-log').innerHTML = ia.hist.map(m => `<div class="ia-msg ${m.rol}">${m.rol === 'ia' ? mdIA(m.t) : esc(m.t)}</div>`).join('')
-    + (ia.ocupado ? '<div class="ia-msg ia hint">Pensando…</div>' : '') + (ia.error ? `<div class="ia-msg err">${esc(ia.error)}</div>` : '');
+    + (ia.ocupado ? `<div class="ia-msg ia hint">Pensando… ${Math.round((Date.now() - ia.desde) / 1000)} s</div>` : '') + (ia.error ? `<div class="ia-msg err">${esc(ia.error)}</div>` : '');
   el.querySelector('.ia-sug').style.display = ia.hist.length ? 'none' : '';
   el.querySelector('button.pri').disabled = ia.ocupado;
   const log = el.querySelector('.ia-log'); log.scrollTop = log.scrollHeight;
