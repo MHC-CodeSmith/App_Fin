@@ -1708,7 +1708,7 @@ async function preguntarIA(texto){
   } finally { clearInterval(reloj); ia.ocupado = false; pintarIA(); }
 }
 // Texto de Gemini → HTML sencillo (negritas, listas, saltos de línea)
-const mdIA = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^\s*[-*] (.*)$/gm, '• $1').replace(/^-{3,}$/gm, '').replace(/\n/g, '<br>');
+const mdIA = t => esc(t).replace(/^#{1,6}\s*(.+)$/gm, '<b>$1</b>').replace(/`([^`]+)`/g, '$1').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^\s*[-*] (.*)$/gm, '• $1').replace(/^-{3,}$/gm, '').replace(/\n/g, '<br>');
 const SUGERENCIAS_IA = ['¿Quién me debe más y desde cuándo?', '¿Cuánto gané este año y cuánto el anterior?', '¿Quién paga esta semana?', '¿Le presto 1000 a Karo?', '¿Qué clientes están empeorando?'];
 function pintarIA(){
   const el = document.getElementById('iaBox'); if (!el) return;
