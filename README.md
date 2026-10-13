@@ -7,7 +7,7 @@ App web para controlar préstamos y cobros. Moneda: soles (S/).
 - Atrasos, pagos de "solo interés", refinanciamientos y **Corregir** para arreglar errores.
 - **Semáforo de cumplimiento** de cada cliente (Cumple / Regular / Riesgoso) con tolerancia de 3 días; pagar solo el interés a tiempo no cuenta como incumplir.
 - **Duplicar** un préstamo: abre *Nuevo* con el mismo cliente, monto, interés y meses, para solo cambiar la fecha.
-- **Corregir cuotas**: en cada fila se puede cambiar fecha, prestado, capital, interés, monto fijo, pagada, la fecha de pago y **Congelar** solo esa cuota (el resto del préstamo sigue activo).
+- **Corregir cuotas**: en cada fila se puede cambiar fecha, prestado, capital, interés, monto fijo, pagada, la fecha de pago y **Congelar** solo esa cuota (el resto del préstamo sigue activo) o marcarla **Refinanciado** (su capital ya pasó a otro préstamo: no es deuda ni pérdida; se puede desmarcar y vuelve a como estaba).
 - **Monto fijo**: una cuota puede ser un monto acordado sin cálculo (por ejemplo, en un refinanciamiento).
 - **Meses**: cada mes como en la nota (cliente, %, capital − interés, fecha y si pagó), con lo cobrado, lo que falta, la ganancia del mes y un gráfico para saltar entre meses.
 - **Clientes**: **Editar datos** cambia el nombre, apodo, teléfono, ingreso y redes en todos sus préstamos; buscador con lo recaudado de cada cliente (capital + interés), lo que debe, su % cumplido y hasta cuánto se le puede prestar sin riesgo; al tocar uno se ve todo su historial.

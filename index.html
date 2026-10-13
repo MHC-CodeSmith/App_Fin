@@ -329,7 +329,7 @@ function crearPrestamo(o){
     cuotas = o.filas.map(f => {
       const c = {id:f.id || uid(), fecha:f.fecha, capital:r2(+f.capital || 0), interes:r2(+f.interes || 0), tipo:f.tipo || 'normal',
         pagado:!!f.pagado, fechaPago:f.pagado ? (f.fechaPago || f.fecha) : null, ...(f.fijo ? {fijo:true} : {})};
-      for (const k of ['mora', 'moraExonerada', 'obs', 'cubierta', 'movido', 'aplicado', 'pagos']) if (f[k] != null) c[k] = f[k];
+      for (const k of ['mora', 'moraExonerada', 'obs', 'cubierta', 'movido', 'aplicado', 'pagos', 'refiOrig']) if (f[k] != null) c[k] = f[k];
       if (f.congelada && !c.pagado) c.congelada = true;
       if (f.saldo != null && f.saldo !== '') c.saldo = +f.saldo;
       return c;
@@ -878,35 +878,43 @@ function previa(){
   }
   el.innerHTML = aviso + `<div class="hint" style="margin-bottom:8px">Cambia la fecha, el capital o el interés de cada cuota. Marca “Pagada” en las que ya te pagaron.
      <button class="btn sm" type="button" onclick="borrador.filas=generarFilas();previa()">↺ Volver al cálculo automático</button></div>
-   <div class="tblwrap"><table class="edit"><thead><tr><th>#</th><th>Fecha límite</th><th class="n" title="Monto prestado que se muestra en esta fila. Vacío = el monto del préstamo.">Prestado</th><th class="n">Capital / monto</th><th class="n">Interés</th><th class="n">Total</th><th title="Acuerdo sin cálculo: el monto va en la columna Capital">Monto fijo</th><th>Pagada</th><th>Pagó el</th><th title="Congelar solo esta cuota: queda en Atrasados → Congelados, no suma mora ni cuenta en los totales">Congelar</th><th></th></tr></thead><tbody id="filas">
-   ${b.filas.map((f,i)=>`<tr data-i="${i}"><td>${i+1}${f.tipo==='interes'?' <span class="chip blue">solo int.</span>':''}${pagosDe(f).length ? ` <span class="chip amber" title="Tiene pagos a cuenta">a cuenta ${num(pagadoParcial(f))}</span>` : ''}</td>
+   <div class="tblwrap"><table class="edit"><thead><tr><th>#</th><th>Fecha límite</th><th class="n" title="Monto prestado que se muestra en esta fila. Vacío = el monto del préstamo.">Prestado</th><th class="n">Capital / monto</th><th class="n">Interés</th><th class="n">Total</th><th title="Acuerdo sin cálculo: el monto va en la columna Capital">Monto fijo</th><th>Pagada</th><th>Pagó el</th><th title="Congelar solo esta cuota: queda en Atrasados → Congelados, no suma mora ni cuenta en los totales">Congelar</th><th title="Esta cuota pasó a un refinanciamiento: su capital ya está en otro préstamo, así que no es deuda ni pérdida">Refinanciado</th><th></th></tr></thead><tbody id="filas">
+   ${b.filas.map((f,i)=>{ const rf = f.tipo === 'refi'; return `<tr data-i="${i}" class="${rf ? 'paid' : ''}"><td>${i+1}${f.tipo==='interes'?' <span class="chip blue">solo int.</span>':''}${rf ? ' <span class="chip blue">refinanciado</span>' : ''}${pagosDe(f).length ? ` <span class="chip amber" title="Tiene pagos a cuenta">a cuenta ${num(pagadoParcial(f))}</span>` : ''}</td>
      <td><input type="date" data-k="fecha" value="${f.fecha}"></td>
      <td class="n"><input type="number" step="any" data-k="saldo" value="${f.saldo ?? ''}" placeholder="${num(b.capital)}"></td>
-     <td class="n"><input type="number" step="any" data-k="capital" value="${f.capital}"></td>
+     ${rf ? `<td class="n"><input type="number" step="any" data-k="movido" value="${f.movido || 0}" title="Capital que pasó al refinanciamiento"></td><td class="n hint">—</td><td class="n hint" data-tot>pasó ${num(f.movido || 0)}</td>`
+       : `<td class="n"><input type="number" step="any" data-k="capital" value="${f.capital}"></td>
      <td class="n"><input type="number" step="any" data-k="interes" value="${f.interes}"></td>
-     <td class="n" data-tot><b>${num(+f.capital + +f.interes)}</b></td>
-     <td style="text-align:center"><input type="checkbox" data-k="fijo" ${f.fijo?'checked':''} style="width:auto"></td>
-     <td style="text-align:center"><input type="checkbox" data-k="pagado" ${f.pagado?'checked':''} style="width:auto"></td>
-     <td><input type="date" data-k="fechaPago" value="${f.pagado ? (f.fechaPago || f.fecha) : ''}" ${f.pagado ? '' : 'disabled'}></td>
-     <td style="text-align:center"><input type="checkbox" data-k="congelada" ${!f.pagado && f.congelada ? 'checked' : ''} ${f.pagado ? 'disabled title="Ya está pagada"' : ''} style="width:auto"></td>
-     <td><button class="btn sm dan" type="button" onclick="borrador.filas.splice(${i},1);previa()">✕</button></td></tr>`).join('')}
+     <td class="n" data-tot><b>${num(+f.capital + +f.interes)}</b></td>`}
+     <td style="text-align:center"><input type="checkbox" data-k="fijo" ${f.fijo?'checked':''} ${rf ? 'disabled' : ''} style="width:auto"></td>
+     <td style="text-align:center"><input type="checkbox" data-k="pagado" ${f.pagado && !rf ?'checked':''} ${rf ? 'disabled' : ''} style="width:auto"></td>
+     <td><input type="date" data-k="fechaPago" value="${f.pagado && !rf ? (f.fechaPago || f.fecha) : ''}" ${f.pagado && !rf ? '' : 'disabled'}></td>
+     <td style="text-align:center"><input type="checkbox" data-k="congelada" ${!f.pagado && f.congelada ? 'checked' : ''} ${f.pagado ? 'disabled title="Ya está pagada o refinanciada"' : ''} style="width:auto"></td>
+     <td style="text-align:center"><input type="checkbox" data-k="refi" ${rf ? 'checked' : ''} ${f.pagado && !rf ? 'disabled title="Ya está pagada"' : ''} style="width:auto"></td>
+     <td><button class="btn sm dan" type="button" onclick="borrador.filas.splice(${i},1);previa()">✕</button></td></tr>`; }).join('')}
    </tbody></table></div>
    <div class="acts" style="margin-top:8px"><button class="btn sm" type="button" onclick="agregarFila()">+ Agregar cuota</button></div>
    <div id="sumas" class="hint" style="margin-top:10px"></div>`;
   document.getElementById('filas').oninput = e => {
     const tr = e.target.closest('tr'), f = b.filas[+tr.dataset.i], k = e.target.dataset.k;
+    // Refinanciado: la cuota queda cerrada (como al refinanciar) y su capital "pasa" al otro préstamo: no es deuda ni pérdida.
+    if (k === 'refi'){
+      if (e.target.checked){ f.refiOrig = {capital:f.capital, interes:f.interes, tipo:f.tipo}; Object.assign(f, {tipo:'refi', movido:+f.capital || 0, capital:0, interes:0, pagado:true, fechaPago:f.fecha, congelada:false}); }
+      else { const o = f.refiOrig || {capital:f.movido || 0, interes:0, tipo:'normal'}; Object.assign(f, {tipo:o.tipo === 'refi' ? 'normal' : o.tipo, capital:o.capital, interes:o.interes, pagado:false, fechaPago:null}); delete f.movido; delete f.refiOrig; }
+      previa(); return;
+    }
     f[k] = k === 'pagado' || k === 'fijo' || k === 'congelada' ? e.target.checked : k === 'fecha' ? e.target.value : k === 'fechaPago' ? e.target.value || null
       : k === 'saldo' ? (e.target.value === '' ? null : +e.target.value) : +e.target.value || 0;
     if (k === 'congelada' && f.congelada) f.moraExonerada = true;   // congelada no suma mora (igual que al congelar el préstamo)
     if (k === 'pagado'){ f.fechaPago = f.pagado ? (f.fechaPago || f.fecha) : null; if (f.pagado) f.congelada = false; previa(); return; }
-    tr.querySelector('[data-tot]').innerHTML = `<b>${num(+f.capital + +f.interes)}</b>`;
+    tr.querySelector('[data-tot]').innerHTML = f.tipo === 'refi' ? `pasó ${num(f.movido || 0)}` : `<b>${num(+f.capital + +f.interes)}</b>`;
     sumas();
   };
   sumas();
 }
 function sumas(){
   const b = borrador, el = document.getElementById('sumas'); if (!el) return;
-  const cap = r2(b.filas.reduce((s,f) => s + (+f.capital||0), 0)), int = r2(b.filas.reduce((s,f) => s + (+f.interes||0), 0));
+  const cap = r2(b.filas.reduce((s,f) => s + (+(f.tipo === 'refi' ? f.movido : f.capital)||0), 0)), int = r2(b.filas.reduce((s,f) => s + (+f.interes||0), 0));
   const intEsp = interesDe(b.modo, b.capital, b.valor, b.meses);
   el.innerHTML = `Capital <b>${money(cap)}</b> ${cap === r2(b.capital) ? '✓' : `<span class="chip amber">prestaste ${money(b.capital)}</span>`}
     · Interés <b>${money(int)}</b> ${int === intEsp ? '✓' : `<span class="chip amber">con el interés de arriba serían ${money(intEsp)}</span>`}
