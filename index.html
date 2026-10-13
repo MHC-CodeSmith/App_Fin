@@ -1227,7 +1227,7 @@ function tablaPrestamo(L){
     return `<tr class="${q.pagado ? 'paid' : ''} ${!q.pagado && q.fecha < t && !cuotaCong(L, q) ? 'late' : ''}">
       <td>${i + 1}${etiquetaTipo(q)}</td><td>${fx(q.fecha)}</td>
       <td class="n">${refi ? '—' : num(q.capital)}</td><td class="n">${refi ? '—' : num(intAcord(q))}</td><td class="n">${refi || !intAdic(q) ? '—' : num(intAdic(q))}</td><td class="n"><b>${refi ? '—' : num(tot)}</b></td>
-      <td>${celdaPago(q, fx)}</td><td>${estadoFila(L, q)}</td><td style="text-align:right;white-space:nowrap">${btnParcial(L, q)} ${btnObs(L, q)}</td></tr>`;
+      <td>${celdaPago(q, fx)}</td><td>${estadoFila(L, q)}</td><td style="text-align:right;white-space:nowrap">${btnParcial(L, q)} ${btnObs(L, q)}${q.tipo === 'abono' ? '' : ` <button class="btn sm" onclick="dlgCuota('${L.id}','${q.id}')" title="Editar cuota">✎</button>`}</td></tr>`;
   }).join('');
   return `<div class="tblwrap" style="margin-top:8px"><table class="hist"><thead><tr><th>#</th><th>Fecha límite</th><th class="n">Capital</th><th class="n" title="El interés pactado del préstamo">Interés acordado</th><th class="n" title="Interés + : lo que se cobró de más por demora (mora)">Interés +</th><th class="n">Total</th><th>Pagó el</th><th>Estado</th><th></th></tr></thead>
     <tbody>${filas}</tbody>
@@ -1254,7 +1254,7 @@ function tablaHistorial(c){
       <td class="n">${q.tipo === 'refi' ? '—' : num(q.capital)}</td><td class="n">${q.tipo === 'refi' ? '—' : num(intAcord(q))}</td><td class="n">${q.tipo === 'refi' || !intAdic(q) ? '—' : num(intAdic(q))}</td><td class="n"><b>${q.tipo === 'refi' ? '—' : num(tot)}</b></td>
       <td>${celdaPago(q, fx)}</td><td>${estado}</td>
       <td>${L.fechaPrestamo ? fDa(L.fechaPrestamo) : '<span class="hint">—</span>'}</td>
-      <td style="white-space:nowrap;text-align:right">${btnObs(L, q)} ${q.tipo === 'refi' ? '' : q.tipo === 'abono' ? `<button class="btn sm" onclick="anularAbono('${L.id}','${q.id}')">Anular</button>`
+      <td style="white-space:nowrap;text-align:right">${btnObs(L, q)} ${q.tipo === 'refi' ? `<button class="btn sm" onclick="dlgCuota('${L.id}','${q.id}')" title="Editar">✎</button>` : q.tipo === 'abono' ? `<button class="btn sm" onclick="anularAbono('${L.id}','${q.id}')">Anular</button>`
         : `${!q.pagado ? `<button class="btn sm pri" onclick="pagar('${L.id}','${q.id}')">Pagó</button> ` : q.cubierta ? '' : `<button class="btn sm" onclick="${q.tipo === 'interes' ? 'anularInteres' : 'despagar'}('${L.id}','${q.id}')" title="Marcar como NO pagada">Despagar</button> `}${btnParcial(L, q)} <button class="btn sm" onclick="dlgCuota('${L.id}','${q.id}')" title="Editar">✎</button> <button class="btn sm dan" onclick="borrarCuota('${L.id}','${q.id}')" title="Borrar">✕</button>`}</td></tr>`;
   }
   return `<div class="card"><div class="tblwrap"><table class="hist"><thead><tr><th>Fecha límite</th><th>Préstamo</th><th class="n" title="Monto del préstamo. Se puede cambiar a mano en una fila sin afectar a las demás.">Prestado</th><th class="n">Capital</th><th class="n" title="El interés pactado del préstamo">Interés acordado</th><th class="n" title="Interés + : lo que se cobró de más por demora (mora)">Interés +</th><th class="n">Total</th><th>Pagó el</th><th>Estado</th><th title="Día en que se prestó">Pedido el</th><th></th></tr></thead>
@@ -2624,26 +2624,62 @@ function dlgPrestamo(lid){
       save(); toast('Préstamo actualizado', s);
     });
 }
+/* Editar una cuota: montos, fechas y su estado (pendiente, pagada, congelada o refinanciada), todo en un lugar. */
 function dlgCuota(lid, cid){
-  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), tipo = c.fijo ? 'fijo' : c.tipo === 'interes' ? 'interes' : 'normal';
+  const L = buscarL(lid), c = L.cuotas.find(x => x.id === cid), rf = c.tipo === 'refi', o = rf ? (c.refiOrig || {capital:c.movido || 0, interes:0, tipo:'normal'}) : c;
+  const tipo = c.fijo ? 'fijo' : o.tipo === 'interes' ? 'interes' : 'normal';
+  const est = rf ? 'refi' : c.pagado ? 'pagada' : cuotaCong(L, c) ? 'congelada' : 'pendiente';
+  const ps = pagosDe(c);
   dialogo(`Editar cuota ${posicion(L,c)} de ${L.cliente}`, `<div class="form">
-    <label class="full">Tipo de cuota<select name="t">
+    <label>Estado<select name="e">
+      <option value="pendiente" ${est === 'pendiente' ? 'selected' : ''}>Pendiente</option>
+      <option value="pagada" ${est === 'pagada' ? 'selected' : ''}>Pagada</option>
+      <option value="congelada" ${est === 'congelada' ? 'selected' : ''}>Congelada (no paga: no suma mora, es pérdida)</option>
+      <option value="refi" ${est === 'refi' ? 'selected' : ''}>Refinanciada (pasó a otro préstamo: no es pérdida)</option></select></label>
+    <label>Tipo de cuota<select name="t">
       <option value="normal" ${tipo === 'normal' ? 'selected' : ''}>Normal (capital + interés)</option>
       <option value="fijo" ${tipo === 'fijo' ? 'selected' : ''}>Monto fijo (acuerdo, sin cálculo)</option>
       <option value="interes" ${tipo === 'interes' ? 'selected' : ''}>Solo interés</option></select></label>
     <label>Prestado (solo lo que se muestra en la columna Prestado)<input name="sd" type="number" min="0" step="any" value="${c.saldo ?? ''}" placeholder="${num(L.capital)} (el del préstamo)"><span class="hint" style="font-weight:400">Solo cambia esta fila. Vacío = el monto del préstamo.</span></label>
     <label>Fecha límite<input name="f" type="date" value="${c.fecha}"></label>
-    <label><span id="lblCap">Capital de esta cuota</span><input name="c" type="number" step="any" value="${c.capital}"></label>
-    <label>Interés acordado<input name="i" type="number" step="any" value="${intAcord(c)}"></label>
+    <label><span id="lblCap">Capital de esta cuota</span><input name="c" type="number" step="any" value="${o.capital}"></label>
+    <label>Interés acordado<input name="i" type="number" step="any" value="${rf ? o.interes : intAcord(c)}"></label>
     <label>Interés + (mora / demora)<input name="ia" type="number" step="any" min="0" value="${intAdic(c) || ''}" placeholder="0"></label>
-    ${c.pagado ? `<label>Fecha en que pagó<input name="fp" type="date" value="${c.fechaPago || c.fecha}"></label>` : ''}</div>`,
-    b => { const s = snapshot(), t = val(b,'t');
-      const adic = Math.max(0, +val(b,'ia')||0), sd = val(b,'sd');
+    <label data-si="pagada">Fecha en que pagó<input name="fp" type="date" value="${c.pagado && !rf ? (c.fechaPago || c.fecha) : hoy()}"></label>
+    <label data-si="refi">Pasó al refinanciamiento (S/)<input name="mv" type="number" min="0" step="any" value="${rf ? (c.movido || 0) : c.capital}"><span class="hint" style="font-weight:400">El capital que ahora está en el otro préstamo.</span></label>
+    <label class="check" data-si="pendiente"><input type="checkbox" name="ex" ${c.moraExonerada ? 'checked' : ''} style="width:auto"> Exonerar la mora automática (S/ ${moraDia()} por día)</label>
+    ${ps.length ? `<div class="full hint">Pagos a cuenta: ${ps.map(x => `${fD(x.f)} · ${num(x.m)}`).join(' · ')} — falta ${money(faltaCuota(c))}. <button class="btn sm" type="button" onclick="dlg.close();dlgParcial('${L.id}','${c.id}')">Ver o borrar pagos</button></div>`
+      : !c.pagado && !rf ? `<div class="full"><button class="btn sm" type="button" onclick="dlg.close();dlgParcial('${L.id}','${c.id}')">Pagó una parte…</button></div>` : ''}
+    <label class="full">Observación<textarea name="obs" rows="2" placeholder="Opcional">${esc(c.obs || '')}</textarea></label></div>`,
+    b => { const s = snapshot(), t = val(b,'t'), e = val(b,'e');
+      const adic = Math.max(0, +val(b,'ia')||0), sd = val(b,'sd'), obs = val(b,'obs').trim();
       if (sd === '') delete c.saldo; else c.saldo = Math.max(0, +sd || 0);
-      c.fecha = val(b,'f') || c.fecha; c.capital = +val(b,'c')||0; c.interes = r2((+val(b,'i')||0) + adic); if (adic) c.mora = adic; else delete c.mora; if (c.pagado) c.fechaPago = val(b,'fp') || c.fechaPago;
-      c.tipo = t === 'interes' ? 'interes' : 'normal'; if (t === 'fijo') c.fijo = true; else delete c.fijo;
-      L.cuotas.sort((a,b)=>a.fecha.localeCompare(b.fecha)); L.eventos.push({f:hoy(), t:'Se editó una cuota manualmente'}); save(); toast('Cuota actualizada', s); },
-    'Guardar', b => { b.querySelector('#lblCap').textContent = val(b,'t') === 'fijo' ? 'Monto fijo que paga en esta cuota (S/)' : 'Capital de esta cuota'; });
+      if (obs) c.obs = obs; else delete c.obs;
+      c.fecha = val(b,'f') || c.fecha;
+      const cap = +val(b,'c')||0, int = r2((+val(b,'i')||0) + adic), tp = t === 'interes' ? 'interes' : 'normal';
+      if (e === 'refi'){
+        Object.assign(c, {refiOrig:{capital:cap, interes:int, tipo:tp}, tipo:'refi', movido:Math.max(0, +val(b,'mv') || 0), capital:0, interes:0, pagado:true, fechaPago:c.fecha});
+        delete c.congelada; delete c.mora; delete c.fijo;
+      } else {
+        Object.assign(c, {tipo:tp, capital:cap, interes:int}); delete c.movido; delete c.refiOrig;
+        if (adic) c.mora = adic; else delete c.mora;
+        if (t === 'fijo') c.fijo = true; else delete c.fijo;
+        if (e === 'pagada'){ c.pagado = true; c.fechaPago = val(b,'fp') || hoy(); delete c.congelada; }
+        else {
+          c.pagado = false; c.fechaPago = null;
+          // Si el préstamo entero estaba congelado, las demás cuotas siguen congeladas una por una.
+          if (esCongelado(L) && e !== 'congelada'){ pendientes(L).forEach(q => { if (q !== c) q.congelada = true; }); L.congelado = false; L.descongelado = true; }
+          if (e === 'congelada'){ c.congelada = true; c.moraExonerada = true; } else { delete c.congelada; if (b.querySelector('[name=ex]').checked) c.moraExonerada = true; else delete c.moraExonerada; }
+        }
+      }
+      L.cuotas.sort((a,b)=>a.fecha.localeCompare(b.fecha));
+      L.eventos.push({f:hoy(), t:e === est ? 'Se editó una cuota manualmente' : `Cuota ${fD(c.fecha)}: ${{pendiente:'pendiente', pagada:'pagada', congelada:'congelada', refi:'refinanciada'}[e]}`});
+      save(); toast('Cuota actualizada', s); },
+    'Guardar', b => {
+      const e = val(b,'e');
+      b.querySelector('#lblCap').textContent = val(b,'t') === 'fijo' ? 'Monto fijo que paga en esta cuota (S/)' : 'Capital de esta cuota';
+      b.querySelectorAll('[data-si]').forEach(x => x.style.display = x.dataset.si === e || (x.dataset.si === 'pendiente' && e === 'pendiente') ? '' : 'none');
+    });
 }
 
 /* ---------- Toast ---------- */
