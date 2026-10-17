@@ -1293,7 +1293,8 @@ function vMeses(){
   const total = sum(del.filter(x => !cuotaCong(x.L, x.c)), tot), cobrado = sum(del.filter(x => !cuotaCong(x.L, x.c)), c => c.pagado ? tot(c) : pagadoParcial(c)), falta = r2(total - cobrado);
   const pend = del.filter(x => !x.c.pagado && !cuotaCong(x.L, x.c)), pag = del.filter(x => x.c.pagado);
   const lista = filtroMes === 'pend' ? pend : filtroMes === 'pag' ? pag : del;
-  const meses = Array.from({length:12}, (_, i) => addMonths(mesSel + '-01', i - 8).slice(0,7));
+  // Siempre enero a diciembre del año del mes elegido (así no se mezclan años en el gráfico).
+  const meses = Array.from({length:12}, (_, i) => `${anio}-${pad(i + 1)}`);
   const barras = meses.map(m => ({m, g:ganado(m), p:porCobrar(m)})), max = Math.max(1, ...barras.map(b => b.g + b.p));
   const pagosMes = pagos.filter(x => mesKey(x.c.fechaPago) === mesSel).sort((a, b) => a.c.fechaPago.localeCompare(b.c.fechaPago));
   const primero = pagos.map(x => mesKey(x.c.fecha)).sort()[0];
@@ -1318,7 +1319,7 @@ function vMeses(){
   <div class="card list">${lista.length ? `<div class="sumrow" style="border-top:0;border-bottom:1px solid var(--line)">Total ${filtroMes === 'pend' ? 'pendiente' : filtroMes === 'pag' ? 'pagado' : 'del mes'}:
       capital <b>${num(sum(lista.filter(x => x.c.tipo !== 'refi'), c => c.capital))}</b> + interés <b>${num(sum(lista.filter(x => x.c.tipo !== 'refi'), c => c.interes))}</b> = <b>${money(sum(lista.filter(x => x.c.tipo !== 'refi'), tot))}</b></div>` : ''}${lista.map(x => filaMes(x.L, x.c)).join('') || `<div class="empty">No hay cuotas ${filtroMes === 'pend' ? 'pendientes ' : filtroMes === 'pag' ? 'pagadas ' : ''}en ${nombreMes(mesSel)}.</div>`}</div>
 
-  <h2>Ganancia por mes <small>· toca un mes para verlo</small></h2>
+  <h2>Ganancia por mes ${anio} <small>· toca un mes para verlo</small></h2>
   <div class="card chart"><div class="bars">${barras.map(b => `<div class="bcol ${b.m === mesSel ? 'sel' : ''} ${b.m === mesAct ? 'cur' : ''}" onclick="mesSel='${b.m}';render()">
       <div class="bval">${b.g + b.p ? num(b.g + b.p) : ''}</div>
       <div class="bstack" style="height:${Math.round((b.g + b.p) / max * 120)}px">${b.p ? `<i class="bp" style="flex:${b.p}"></i>` : ''}${b.g ? `<i class="bg" style="flex:${b.g}"></i>` : ''}</div>
